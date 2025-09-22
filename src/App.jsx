@@ -16,6 +16,7 @@ function App() {
         <Route index element={<Index />} />
         <Route path="orders" element={<Orders />} />
         <Route path="order/:order_id" element={<OrderDetail />} />
+
         <Route path="products" element={<ProductsDashboard />} />
         <Route path="reporting" element={<Reporting />} />
         <Route path="reporting/sales-detail/:id" element={<SalesDetail />} />

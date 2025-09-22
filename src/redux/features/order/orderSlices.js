@@ -3,12 +3,14 @@ import axios from "axios";
 
 const initialState = {
   orders: [],
-  order: null,
+  orderDetails: null,
   paymentProof: null,
   orderNotes: [],
   orderStatus: "idle",
   error: null,
 };
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 // filters es un objeto con claves opcionales: { status, user, date_from, date_to }
 export const fetchAdminOrders = createAsyncThunk(
@@ -130,32 +132,67 @@ export const updateOrderStatus = createAsyncThunk(
   }
 );
 
-export const fetchOrderNotes = createAsyncThunk(
-  "order/fetchOrderNotes",
-  async (orderId, { rejectWithValue }) => {
-    const token = localStorage.getItem("access");
-
+// Fetch order details
+export const fetchOrderDetails = createAsyncThunk(
+  "orders/fetchOrderDetails",
+  async (orderId, thunkAPI) => {
     try {
-      const config = {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          Authorization: `JWT ${token}`,
-        },
-      };
-
+      const token = localStorage.getItem("access");
       const response = await axios.get(
-        `http://127.0.0.1:8000/api/order/notes/${orderId}/`,
-        config
+        `${API_URL}/api/order/get-order/${orderId}/`,
+        {
+          headers: {
+            Authorization: token ? `JWT ${token}` : "",
+          },
+        }
       );
-
-      return response.data; // es un array de notas
+      console.log(response.data)
+      return response.data;
     } catch (error) {
-      const message =
-        error.response?.data?.detail ||
-        error.response?.data?.error ||
-        "Error al obtener las notas de la orden";
-      return rejectWithValue(message);
+      console.log(error)
+      return thunkAPI.rejectWithValue(
+        error.response?.data || "Error al obtener detalles de la orden"
+      );
+    }
+  }
+);
+
+// Actualizar items de una orden
+export const updateOrderItems = createAsyncThunk(
+  "orders/updateOrderItems",
+  async ({ orderId, action, item_id, product_id, quantity }, thunkAPI) => {
+    try {
+      const token = localStorage.getItem("access");
+
+      // Construir el payload según la acción
+      let payload = { action };
+
+      // Añadir los parámetros correspondientes según la acción
+      if (action === "edit") {
+        payload.item_id = item_id;
+        payload.quantity = quantity;
+      } else if (action === "add") {
+        payload.product_id = product_id;
+        payload.quantity = quantity;
+      } else if (action === "remove") {
+        payload.item_id = item_id;
+      }
+
+      const response = await axios.post(
+        `${API_URL}api/order/edit-order-items/${orderId}/`,
+        payload,
+        {
+          headers: {
+            Authorization: token ? `JWT ${token}` : "",
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data || "Error al actualizar los items de la orden"
+      );
     }
   }
 );
@@ -223,20 +260,40 @@ const adminOrdersSlice = createSlice({
         state.orderStatus = "failed";
         state.error = action.payload;
       })
-      .addCase(fetchOrderNotes.pending, (state) => {
-        state.orderStatus = "loading";
-        state.error = null;
-        state.orderNotes = [];
+      // Reducers para updateOrderItems
+      .addCase(updateOrderItems.pending, (state) => {
+        state.status = "loading";
       })
-      .addCase(fetchOrderNotes.fulfilled, (state, action) => {
-        state.orderStatus = "succeeded";
-        state.orderNotes = action.payload;
+      .addCase(updateOrderItems.fulfilled, (state, action) => {
+        state.status = "succeeded";
+        // Actualizar los items en los detalles de la orden si están disponibles
+        if (state.orderDetails) {
+          // La respuesta de la API debería incluir los items actualizados
+          state.orderDetails.items =
+            action.payload.items || state.orderDetails.items;
+
+          // Actualizar el total si está disponible en la respuesta
+          if (action.payload.total) {
+            state.orderDetails.total = action.payload.total;
+          }
+        }
       })
-      .addCase(fetchOrderNotes.rejected, (state, action) => {
-        state.orderStatus = "failed";
+      .addCase(updateOrderItems.rejected, (state, action) => {
+        state.status = "failed";
         state.error = action.payload;
-        state.orderNotes = [];
       })
+      // Obtenemos los detalles de la orden consultada
+      .addCase(fetchOrderDetails.pending, (state) => {
+        state.status = "loading";
+      })
+      .addCase(fetchOrderDetails.fulfilled, (state, action) => {
+        state.status = "succeeded";
+        state.orderDetails = action.payload;
+      })
+      .addCase(fetchOrderDetails.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = action.payload;
+      });
   },
 });
 

@@ -110,7 +110,7 @@ const ProductsDashboard = () => {
               value={filters.search}
               onChange={(e) => handleFilterChange("search", e.target.value)}
               className="border border-gray-300 rounded px-3 py-2 text-sm"
-              placeholder="Nombre, descripción..."
+              placeholder="Nombre, Cod. Barra..."
             />
           </div>
         </div>
@@ -215,7 +215,7 @@ const ProductsDashboard = () => {
                 <thead className="bg-gray-100">
                   <tr>
                     <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                      ID
+                      Cod. Barra
                     </th>
                     <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                       Nombre
@@ -230,7 +230,7 @@ const ProductsDashboard = () => {
                       Comparación
                     </th>
                     <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
-                      IVA
+                      Habilitado
                     </th>
                     <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
                       Acciones
@@ -239,9 +239,16 @@ const ProductsDashboard = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {products?.results.map((product) => (
-                    <tr key={product.id} className="text-sm">
-                      <td className="px-4 py-2 text-gray-800">#{product.id}</td>
-                      <td className="px-4 py-2 text-gray-800 text-xs">
+                    <tr key={product.id} className="text-xs">
+                      <td className="px-4 py-2 text-gray-800">
+                        <Link
+                          to={`http://localhost:8000/admin/product/product/${product.id}/change/`}
+                          className="text-blue-600 underline"
+                        >
+                          {product.code_bar}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-2 text-gray-800 text-xs font-medium">
                         {product.product_name}
                       </td>
                       <td className="px-4 py-2 text-xs">
@@ -254,23 +261,36 @@ const ProductsDashboard = () => {
                         {product.stock}
                         {")"}
                       </td>
-                      <td className="px-4 py-2">${product.regular_price}</td>
+                      <td className="px-4 py-2">
+                        ${product.regular_price}{" "}
+                        <span className="text-gray-500">
+                          {product.iva_status === "incluye IVA"
+                            ? "Incluye IVA"
+                            : "Exento de IVA"}
+                        </span>
+                      </td>
                       <td className="px-4 py-2">${product.compare_price}</td>
                       <td className="px-4 py-2 text-xs">
-                        {product.iva_status === "incluye IVA"
-                          ? "Incluye IVA"
-                          : "Exento de IVA"}
+                        {product.for_sales ? (
+                          <span className="text-green-700 bg-green-100 rounded-full font-medium py-1 px-2">
+                            Si
+                          </span>
+                        ) : (
+                          <span className="text-red-700 bg-red-100 rounded-full font-medium py-1 px-2">
+                            No
+                          </span>
+                        )}
                       </td>
-                      <td className="px-4 py-2 flex space-x-3">
+                      <td className="px-4 py-2 flex space-x-3 text-xs">
                         <Link
-                          to={`/dashboard/product/${product.id}`}
+                          to={`http://localhost:8000/admin/product/product/${product.id}/change/`}
                           className="text-blue-600 underline"
                         >
-                          Ver
+                          Editar
                         </Link>
-
-                        <button className="text-yellow-700">✏️</button>
-                        <button className="text-red-700">🗑️</button>
+                        <button className="text-red-700 underline">
+                          Desactivar
+                        </button>
                       </td>
                     </tr>
                   ))}

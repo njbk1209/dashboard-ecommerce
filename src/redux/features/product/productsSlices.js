@@ -10,7 +10,11 @@ const initialState = {
   importStatus: "idle",
   importResult: null,
   error: null,
+  searchProducts: [],
+  searchProductsStatus: "idle",
 };
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 // ✅ Filtros esperados: { in_stock, in_promo, category_id, min_price, max_price, currency, etc }
 export const fetchAdminProducts = createAsyncThunk(
@@ -107,6 +111,30 @@ export const importProductsCSV = createAsyncThunk(
   }
 );
 
+// Thunk para buscar productos en el search bar
+export const fetchSearchProducts = createAsyncThunk(
+  "product/fetchSearchProducts",
+  async (query, { rejectWithValue, signal }) => {
+    try {
+      const params = new URLSearchParams();
+      params.append("q", query);
+      const response = await axios.get(
+        `${API_URL}/api/product/search-products/?${params.toString()}`,
+        { signal } // 👈 importante
+      );
+      return response.data;
+    } catch (error) {
+      // si fue cancelado, relanza para que RTK lo marque como abortado
+      console.log(error)
+      if (axios.isCancel?.(error) || error?.name === "CanceledError")
+        throw error;
+      return rejectWithValue(
+        error.response?.data || "Error en la búsqueda de productos"
+      );
+    }
+  }
+);
+
 const adminProductsSlice = createSlice({
   name: "adminProducts",
   initialState,
@@ -154,6 +182,18 @@ const adminProductsSlice = createSlice({
       })
       .addCase(importProductsCSV.rejected, (state, action) => {
         state.importStatus = "failed";
+        state.error = action.payload;
+      })
+      // Añadir los casos para autocompleteProducts
+      .addCase(fetchSearchProducts.pending, (state) => {
+        state.searchProductsStatus = "loading";
+      })
+      .addCase(fetchSearchProducts.fulfilled, (state, action) => {
+        state.searchProductsStatus = "succeeded";
+        state.searchProducts = action.payload;
+      })
+      .addCase(fetchSearchProducts.rejected, (state, action) => {
+        state.searchProductsStatus = "failed";
         state.error = action.payload;
       });
   },
