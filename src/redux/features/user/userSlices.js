@@ -2,13 +2,17 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 import toast from "react-hot-toast";
 
-// Initial State User
+/* =======================
+   Estado inicial
+======================= */
 const initialState = {
   access: localStorage.getItem("access"),
   refresh: localStorage.getItem("refresh"),
   isAuthenticated: false,
   user: null,
   userStatus: "idle", // 'idle' | 'loading' | 'succeeded' | 'failed'
+
+  // Lista admin
   adminUsers: {
     items: [], // results
     count: 0, // total de registros
@@ -24,6 +28,18 @@ const initialState = {
       ordering: "id",
     },
   },
+
+  // Detalle admin
+  adminUserDetail: {
+    data: null,         // payload de /api/user/get-users/:id/
+    status: "idle",     // 'idle' | 'loading' | 'succeeded' | 'failed'
+    error: null,
+    params: {           // params usados para el detalle
+      orders_limit: 10,
+      orders_status: "delivered", // delivered | all
+      top_n: 5,
+    },
+  },
 };
 
 const isProd = window.location.hostname.includes("appweb.motorche.com");
@@ -31,49 +47,43 @@ const BASE_URL = isProd
   ? "https://apiweb.motorche.com"
   : "http://localhost:8000";
 
-// Helper para querystrings
+/* =======================
+   Helpers
+======================= */
 const toQuery = (obj = {}) =>
   Object.entries(obj)
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join("&");
 
-// AsyncThunk para iniciar sesión
+/* =======================
+   Thunks existentes
+======================= */
+// Login
 export const login = createAsyncThunk(
   "auth/login",
   async ({ email, password }, { rejectWithValue, dispatch }) => {
     const config = {
       headers: { "Content-Type": "application/json" },
     };
-
     const body = JSON.stringify({ email, password });
 
     try {
-      const res = await axios.post(
-        `${BASE_URL}/auth/jwt/create/`,
-        body,
-        config
-      );
+      const res = await axios.post(`${BASE_URL}/auth/jwt/create/`, body, config);
 
       if (res.status === 200) {
         const { access, refresh } = res.data;
 
-        // Guardar tokens en localStorage
         localStorage.setItem("access", access);
         localStorage.setItem("refresh", refresh);
 
-        // Actualizar tokens en el estado
         dispatch({
           type: "auth/login/fulfilled",
           payload: { access, refresh },
         });
 
-        // Cargar datos del usuario
         const userRes = await dispatch(load_user());
 
-        console.log(userRes);
-
-        // Si la acción fue rechazada por algún motivo (ej. token inválido)
         if (load_user.rejected.match(userRes)) {
           dispatch(logout());
           return rejectWithValue("Error cargando el usuario");
@@ -91,118 +101,94 @@ export const login = createAsyncThunk(
         return { access, refresh };
       }
     } catch (err) {
-      console.log(err);
       return rejectWithValue("Error al iniciar sesión");
     }
   }
 );
 
-// AsyncThuck para refrescar el token
+// Refresh
 export const refresh = createAsyncThunk(
-  "auth/refresh", // Nombre del action
+  "auth/refresh",
   async (_, { rejectWithValue }) => {
-    if (localStorage.getItem("refresh")) {
-      const config = {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-      };
-
-      const body = JSON.stringify({
-        refresh: localStorage.getItem("refresh"),
-      });
-
-      try {
-        const res = await axios.post(
-          `${BASE_URL}/auth/jwt/refresh/`,
-          body,
-          config
-        );
-
-        if (res.status === 200) {
-          return res.data; // Retorna los datos obtenidos (token actualizado)
-        } else {
-          return rejectWithValue("Failed to refresh token");
-        }
-      } catch (err) {
-        return rejectWithValue(
-          err.response?.data || "Error while refreshing token"
-        );
-      }
-    } else {
+    if (!localStorage.getItem("refresh")) {
       return rejectWithValue("No refresh token found");
     }
+
+    const config = {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    };
+    const body = JSON.stringify({
+      refresh: localStorage.getItem("refresh"),
+    });
+
+    try {
+      const res = await axios.post(`${BASE_URL}/auth/jwt/refresh/`, body, config);
+      if (res.status === 200) return res.data;
+      return rejectWithValue("Failed to refresh token");
+    } catch (err) {
+      return rejectWithValue(err.response?.data || "Error while refreshing token");
+    }
   }
 );
 
-// AsyncThuck para comprobar autenticación
+// Check Auth
 export const checkAuthenticated = createAsyncThunk(
-  "auth/checkAuthenticated", // Nombre del action
+  "auth/checkAuthenticated",
   async (_, { rejectWithValue }) => {
-    if (localStorage.getItem("access")) {
-      const config = {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-      };
-
-      const body = JSON.stringify({
-        token: localStorage.getItem("access"),
-      });
-
-      try {
-        const res = await axios.post(
-          `${BASE_URL}/auth/jwt/verify/`,
-          body,
-          config
-        );
-        if (res.status === 200) {
-          return true; // Success
-        } else {
-          return rejectWithValue("No hay autenticación");
-        }
-      } catch (err) {
-        return rejectWithValue(err.response?.data || "Error de servidor");
-      }
-    } else {
+    if (!localStorage.getItem("access")) {
       return rejectWithValue("No se ha encontrado un token de acceso");
     }
-  }
-);
 
-// AsyncThuck para cargar el usuario
-export const load_user = createAsyncThunk(
-  "auth/load_user", // Nombre del action
-  async (_, { rejectWithValue }) => {
-    if (localStorage.getItem("access")) {
-      const config = {
-        headers: {
-          Authorization: `JWT ${localStorage.getItem("access")}`,
-          Accept: "application/json",
-        },
-      };
+    const config = {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    };
+    const body = JSON.stringify({
+      token: localStorage.getItem("access"),
+    });
 
-      try {
-        const res = await axios.get(`${BASE_URL}/auth/users/me/`, config);
-        if (res.status === 200) {
-          return res.data;
-        } else {
-          return rejectWithValue("Failed to load user");
-        }
-      } catch (err) {
-        return rejectWithValue(
-          err.response?.data || "Error while loading user"
-        );
-      }
-    } else {
-      return rejectWithValue("No access token found");
+    try {
+      const res = await axios.post(`${BASE_URL}/auth/jwt/verify/`, body, config);
+      if (res.status === 200) return true;
+      return rejectWithValue("No hay autenticación");
+    } catch (err) {
+      return rejectWithValue(err.response?.data || "Error de servidor");
     }
   }
 );
 
-//Thunk para capturar usuarios
+// Load user
+export const load_user = createAsyncThunk(
+  "auth/load_user",
+  async (_, { rejectWithValue }) => {
+    if (!localStorage.getItem("access")) {
+      return rejectWithValue("No access token found");
+    }
+    const config = {
+      headers: {
+        Authorization: `JWT ${localStorage.getItem("access")}`,
+        Accept: "application/json",
+      },
+    };
+
+    try {
+      const res = await axios.get(`${BASE_URL}/auth/users/me/`, config);
+      if (res.status === 200) return res.data;
+      return rejectWithValue("Failed to load user");
+    } catch (err) {
+      return rejectWithValue(err.response?.data || "Error while loading user");
+    }
+  }
+);
+
+/* =======================
+   ADMIN: Listar usuarios
+======================= */
 export const fetchAdminUsers = createAsyncThunk(
   "auth/fetchAdminUsers",
   async (params = {}, { getState, dispatch, rejectWithValue }) => {
@@ -217,7 +203,6 @@ export const fetchAdminUsers = createAsyncThunk(
       },
     };
 
-    // parámetros por defecto
     const defaults = { page: 1, page_size: 20, search: "", ordering: "id" };
     const q = { ...defaults, ...params };
     const qs = toQuery({
@@ -232,11 +217,10 @@ export const fetchAdminUsers = createAsyncThunk(
     try {
       const res = await axios.get(url, config);
       if (res.status === 200) return { data: res.data, params: q };
-
       return rejectWithValue("Error al cargar usuarios");
     } catch (err) {
-      // 401 -> intenta refrescar una vez y reintenta
       const status = err?.response?.status;
+
       if (status === 401) {
         const refreshRes = await dispatch(refresh());
         if (refresh.fulfilled.match(refreshRes)) {
@@ -245,26 +229,18 @@ export const fetchAdminUsers = createAsyncThunk(
 
           try {
             const retryRes = await axios.get(url, {
-              headers: {
-                Authorization: `JWT ${newAccess}`,
-                Accept: "application/json",
-              },
+              headers: { Authorization: `JWT ${newAccess}`, Accept: "application/json" },
             });
-            if (retryRes.status === 200)
-              return { data: retryRes.data, params: q };
+            if (retryRes.status === 200) return { data: retryRes.data, params: q };
           } catch (retryErr) {
-            return rejectWithValue(
-              retryErr?.response?.data || "Error al recargar usuarios"
-            );
+            return rejectWithValue(retryErr?.response?.data || "Error al recargar usuarios");
           }
         } else {
-          // refresh falló -> logout
           dispatch(logout());
           return rejectWithValue("Sesión expirada");
         }
       }
 
-      // 403 -> no superuser
       if (status === 403) {
         toast.error("No autorizado: solo superusuarios.");
         return rejectWithValue("Forbidden");
@@ -275,6 +251,181 @@ export const fetchAdminUsers = createAsyncThunk(
   }
 );
 
+/* =======================
+   ADMIN: Detalle de usuario
+======================= */
+export const fetchAdminUserDetail = createAsyncThunk(
+  "auth/fetchAdminUserDetail",
+  async ({ id, orders_limit = 10, orders_status = "delivered", top_n = 5 }, { getState, dispatch, rejectWithValue }) => {
+    const state = getState();
+    const token = state.user?.access || localStorage.getItem("access");
+    if (!token) return rejectWithValue("No access token");
+
+    const qs = toQuery({ orders_limit, orders_status, top_n });
+    const url = `${BASE_URL}/api/user/get-users/${id}/${qs ? `?${qs}` : ""}`;
+
+    const getConfig = (tkn) => ({
+      headers: { Authorization: `JWT ${tkn}`, Accept: "application/json" },
+    });
+
+    try {
+      const res = await axios.get(url, getConfig(token));
+      if (res.status === 200) {
+        return { data: res.data, params: { orders_limit, orders_status, top_n } };
+      }
+      return rejectWithValue("Error al cargar detalle");
+    } catch (err) {
+      const status = err?.response?.status;
+
+      if (status === 401) {
+        const refreshRes = await dispatch(refresh());
+        if (refresh.fulfilled.match(refreshRes)) {
+          const newAccess = refreshRes.payload?.access;
+          if (!newAccess) return rejectWithValue("Refresh sin access token");
+
+          try {
+            const retryRes = await axios.get(url, getConfig(newAccess));
+            if (retryRes.status === 200) {
+              return { data: retryRes.data, params: { orders_limit, orders_status, top_n } };
+            }
+          } catch (retryErr) {
+            return rejectWithValue(retryErr?.response?.data || "Error al recargar detalle");
+          }
+        } else {
+          dispatch(logout());
+          return rejectWithValue("Sesión expirada");
+        }
+      }
+
+      if (status === 403) {
+        toast.error("No autorizado: solo superusuarios.");
+        return rejectWithValue("Forbidden");
+      }
+
+      return rejectWithValue(err?.response?.data || "Error al cargar detalle");
+    }
+  }
+);
+
+/* =======================
+   ADMIN: Desactivar usuario
+======================= */
+export const deactivateAdminUser = createAsyncThunk(
+  "auth/deactivateAdminUser",
+  async (id, { getState, dispatch, rejectWithValue }) => {
+    const state = getState();
+    const token = state.user?.access || localStorage.getItem("access");
+    if (!token) return rejectWithValue("No access token");
+
+    const url = `${BASE_URL}/api/user/get-users/${id}/deactivate/`;
+    const getConfig = (tkn) => ({
+      headers: { Authorization: `JWT ${tkn}`, Accept: "application/json" },
+    });
+
+    try {
+      const res = await axios.post(url, null, getConfig(token));
+      if (res.status === 200) {
+        return { id, message: res.data?.detail || "Usuario desactivado con éxito." };
+      }
+      return rejectWithValue("No fue posible desactivar el usuario");
+    } catch (err) {
+      const status = err?.response?.status;
+
+      if (status === 401) {
+        const refreshRes = await dispatch(refresh());
+        if (refresh.fulfilled.match(refreshRes)) {
+          const newAccess = refreshRes.payload?.access;
+          if (!newAccess) return rejectWithValue("Refresh sin access token");
+
+          try {
+            const retryRes = await axios.post(url, null, getConfig(newAccess));
+            if (retryRes.status === 200) {
+              return { id, message: retryRes.data?.detail || "Usuario desactivado con éxito." };
+            }
+          } catch (retryErr) {
+            return rejectWithValue(retryErr?.response?.data || "Error al reintentar desactivar");
+          }
+        } else {
+          dispatch(logout());
+          return rejectWithValue("Sesión expirada");
+        }
+      }
+
+      if (status === 400) {
+        // Mensaje del backend: no desactivar staff/superuser o ya desactivado
+        const detail = err?.response?.data?.detail || "Solicitud inválida";
+        toast.error(detail);
+        return rejectWithValue(detail);
+      }
+
+      if (status === 403) {
+        toast.error("No autorizado: solo superusuarios.");
+        return rejectWithValue("Forbidden");
+      }
+
+      return rejectWithValue(err?.response?.data || "No fue posible desactivar el usuario");
+    }
+  }
+);
+
+/* =======================
+   ADMIN: Activar usuario
+======================= */
+export const activateAdminUser = createAsyncThunk(
+  "auth/activateAdminUser",
+  async (id, { getState, dispatch, rejectWithValue }) => {
+    const state = getState();
+    const token = state.user?.access || localStorage.getItem("access");
+    if (!token) return rejectWithValue("No access token");
+
+    const url = `${BASE_URL}/api/user/get-users/${id}/activate/`;
+    const getConfig = (tkn) => ({
+      headers: { Authorization: `JWT ${tkn}`, Accept: "application/json" },
+    });
+
+    try {
+      const res = await axios.post(url, null, getConfig(token));
+      if (res.status === 200) {
+        return { id, message: res.data?.detail || "Usuario activado con éxito." };
+      }
+      return rejectWithValue("No fue posible activar el usuario");
+    } catch (err) {
+      const status = err?.response?.status;
+
+      if (status === 401) {
+        const refreshRes = await dispatch(refresh());
+        if (refresh.fulfilled.match(refreshRes)) {
+          const newAccess = refreshRes.payload?.access;
+          if (!newAccess) return rejectWithValue("Refresh sin access token");
+
+          try {
+            const retryRes = await axios.post(url, null, getConfig(newAccess));
+            if (retryRes.status === 200) {
+              return { id, message: retryRes.data?.detail || "Usuario activado con éxito." };
+            }
+          } catch (retryErr) {
+            return rejectWithValue(retryErr?.response?.data || "Error al reintentar activar");
+          }
+        } else {
+          dispatch(logout());
+          return rejectWithValue("Sesión expirada");
+        }
+      }
+
+      if (status === 403) {
+        toast.error("No autorizado: solo superusuarios.");
+        return rejectWithValue("Forbidden");
+      }
+
+      const msg = err?.response?.data || "No fue posible activar el usuario";
+      return rejectWithValue(msg);
+    }
+  }
+);
+
+/* =======================
+   Slice
+======================= */
 const userSlice = createSlice({
   name: "user",
   initialState,
@@ -290,7 +441,7 @@ const userSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Login reducer
+      // Login
       .addCase(login.pending, (state) => {
         state.userStatus = "loading";
       })
@@ -307,7 +458,7 @@ const userSlice = createSlice({
         state.userStatus = "failed";
       })
 
-      // REFRESH REDUCER
+      // Refresh
       .addCase(refresh.pending, (state) => {
         state.userStatus = "loading";
       })
@@ -326,11 +477,11 @@ const userSlice = createSlice({
         state.userStatus = "failed";
       })
 
-      // CHECKAUTHENTICATED REDUCER
+      // Check
       .addCase(checkAuthenticated.pending, (state) => {
         state.userStatus = "loading";
       })
-      .addCase(checkAuthenticated.fulfilled, (state, action) => {
+      .addCase(checkAuthenticated.fulfilled, (state) => {
         state.isAuthenticated = true;
         state.userStatus = "succeeded";
       })
@@ -344,7 +495,7 @@ const userSlice = createSlice({
         state.userStatus = "failed";
       })
 
-      // LOADUSER REDUCER
+      // Load user
       .addCase(load_user.pending, (state) => {
         state.userStatus = "loading";
       })
@@ -357,7 +508,8 @@ const userSlice = createSlice({
         state.isAuthenticated = false;
         state.userStatus = "failed";
       })
-      // ---- ADMIN USERS LIST ----
+
+      /* ===== ADMIN LIST ===== */
       .addCase(fetchAdminUsers.pending, (state) => {
         state.adminUsers.status = "loading";
         state.adminUsers.error = null;
@@ -378,6 +530,97 @@ const userSlice = createSlice({
           typeof action.payload === "string"
             ? action.payload
             : "No se pudo cargar la lista de usuarios";
+      })
+
+      /* ===== ADMIN DETAIL ===== */
+      .addCase(fetchAdminUserDetail.pending, (state, action) => {
+        state.adminUserDetail.status = "loading";
+        state.adminUserDetail.error = null;
+
+        // Si se pasan params nuevos, actualiza en estado para que la UI los refleje
+        const arg = action.meta?.arg;
+        if (arg) {
+          state.adminUserDetail.params = {
+            orders_limit: arg.orders_limit ?? state.adminUserDetail.params.orders_limit,
+            orders_status: arg.orders_status ?? state.adminUserDetail.params.orders_status,
+            top_n: arg.top_n ?? state.adminUserDetail.params.top_n,
+          };
+        }
+      })
+      .addCase(fetchAdminUserDetail.fulfilled, (state, action) => {
+        state.adminUserDetail.data = action.payload.data || null;
+        state.adminUserDetail.status = "succeeded";
+        state.adminUserDetail.error = null;
+        // asegura que los params queden sincronizados
+        state.adminUserDetail.params = action.payload.params || state.adminUserDetail.params;
+      })
+      .addCase(fetchAdminUserDetail.rejected, (state, action) => {
+        state.adminUserDetail.status = "failed";
+        state.adminUserDetail.error =
+          typeof action.payload === "string" ? action.payload : "No se pudo cargar el detalle";
+      })
+
+      /* ===== ADMIN DEACTIVATE ===== */
+      .addCase(deactivateAdminUser.pending, (state) => {
+        // no cambiamos estados globales; feedback lo maneja el componente con status si quiere
+      })
+      .addCase(deactivateAdminUser.fulfilled, (state, action) => {
+        const { id, message } = action.payload;
+
+        // Actualización optimista: marcar is_active=false en la lista si está presente
+        const idx = state.adminUsers.items.findIndex((u) => u.id === id);
+        if (idx !== -1) {
+          state.adminUsers.items[idx] = {
+            ...state.adminUsers.items[idx],
+            is_active: false,
+          };
+        }
+
+        // Si estás viendo el detalle del mismo usuario, actualízalo también
+        if (state.adminUserDetail.data && state.adminUserDetail.data.id === id) {
+          state.adminUserDetail.data = {
+            ...state.adminUserDetail.data,
+            is_active: false,
+          };
+        }
+
+        toast.success(message || "Usuario desactivado con éxito.");
+      })
+      .addCase(deactivateAdminUser.rejected, (state, action) => {
+        const msg =
+          typeof action.payload === "string"
+            ? action.payload
+            : "No fue posible desactivar el usuario";
+        // Puedes guardar un error global si quieres
+        toast.error(msg);
+      })
+      // ---- ADMIN ACTIVATE ----
+      .addCase(activateAdminUser.fulfilled, (state, action) => {
+        const { id, message } = action.payload;
+
+        // Actualización optimista en la lista
+        const idx = state.adminUsers.items.findIndex((u) => u.id === id);
+        if (idx !== -1) {
+          state.adminUsers.items[idx] = {
+            ...state.adminUsers.items[idx],
+            is_active: true,
+          };
+        }
+
+        // Si el detalle abierto coincide, actualízalo
+        if (state.adminUserDetail.data && state.adminUserDetail.data.id === id) {
+          state.adminUserDetail.data = {
+            ...state.adminUserDetail.data,
+            is_active: true,
+          };
+        }
+
+        toast.success(message || "Usuario activado con éxito.");
+      })
+      .addCase(activateAdminUser.rejected, (state, action) => {
+        const msg =
+          typeof action.payload === "string" ? action.payload : "No fue posible activar el usuario";
+        toast.error(msg);
       });
   },
 });

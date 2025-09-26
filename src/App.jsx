@@ -7,7 +7,8 @@ import OrderDetail from "./pages/dashboard/OrderDetail";
 import ProductsDashboard from "./pages/dashboard/products/Index";
 import Reporting from "./pages/dashboard/reporting";
 import SalesDetail from "./pages/dashboard/reporting/SalesDetail";
-import AdminUsersTable from "./pages/dashboard/users/Users";
+import AdminUsers from "./pages/dashboard/users/Users";
+import AdminUserDetail from "./pages/dashboard/users/AdminUserDetail";
 
 function App() {
   return (
@@ -20,8 +21,8 @@ function App() {
 
         <Route path="products" element={<ProductsDashboard />} />
 
-        <Route path="users" element={<AdminUsersTable />} />
-
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="user/:id" element={<AdminUserDetail />} />
 
 
         <Route path="reporting" element={<Reporting />} />
