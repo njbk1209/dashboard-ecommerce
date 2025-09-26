@@ -125,11 +125,43 @@ export const fetchSearchProducts = createAsyncThunk(
       return response.data;
     } catch (error) {
       // si fue cancelado, relanza para que RTK lo marque como abortado
-      console.log(error)
+      console.log(error);
       if (axios.isCancel?.(error) || error?.name === "CanceledError")
         throw error;
       return rejectWithValue(
         error.response?.data || "Error en la búsqueda de productos"
+      );
+    }
+  }
+);
+
+export const toggleProductForSales = createAsyncThunk(
+  "adminProducts/toggleProductForSales",
+  async ({ order_id, for_sales }, { rejectWithValue }) => {
+    const token = localStorage.getItem("access");
+
+    try {
+      const config = {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `JWT ${token}`,
+        },
+      };
+
+      const body = JSON.stringify({ for_sales });
+
+      const response = await axios.patch(
+        `http://127.0.0.1:8000/api/product/toggle-for-sales/${order_id}/`,
+        body,
+        config
+      );
+
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.detail ||
+          "Error al actualizar el estado de venta del producto."
       );
     }
   }
@@ -194,6 +226,26 @@ const adminProductsSlice = createSlice({
       })
       .addCase(fetchSearchProducts.rejected, (state, action) => {
         state.searchProductsStatus = "failed";
+        state.error = action.payload;
+      })
+      // ExtraReducers para toggleProductForSales
+      .addCase(toggleProductForSales.pending, (state) => {
+        state.productStatus = "loading";
+        state.error = null;
+      })
+      .addCase(toggleProductForSales.fulfilled, (state, action) => {
+        state.productStatus = "succeeded";
+        state.error = null;
+        const updatedProduct = action.payload;
+        const index = state?.products?.results?.findIndex(
+          (product) => product.id === updatedProduct.id
+        );
+        if (index !== -1) {
+          state.products.results[index] = updatedProduct;
+        }
+      })
+      .addCase(toggleProductForSales.rejected, (state, action) => {
+        state.productStatus = "failed";
         state.error = action.payload;
       });
   },

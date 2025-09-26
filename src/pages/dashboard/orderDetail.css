@@ -1,0 +1,46 @@
+/* Tu archivo CSS */
+
+/* Estilos para el modo de impresión */
+@media print {
+  /* Ocultar elementos que no deben aparecer */
+  .print-hidden,
+  .print-hidden-button,
+  .print-hidden-section {
+    display: none !important;
+  }
+
+  /* Mostrar elementos solo para impresión */
+  .print-only {
+    display: block !important;
+  }
+
+  /* Ocultar encabezados, pie de página, etc. del navegador */
+  @page {
+    margin: 0;
+  }
+  body {
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Ajustar la maquetación para la impresión */
+  .main-content-container {
+    width: 100%;
+    max-width: none;
+    padding: 20px;
+    box-shadow: none;
+  }
+
+  /* Asegurar que la comanda se vea bien */
+  .grid-cols-4, .grid-cols-3 {
+    display: block; /* Cambia a un diseño de bloque para impresión */
+  }
+
+  .col-span-1, .col-span-3 {
+    width: 100%;
+  }
+}
+
+/* Estilo para los elementos que solo se muestran en impresión */
+.print-only {
+  display: none;
+}

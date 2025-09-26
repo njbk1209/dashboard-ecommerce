@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   fetchAdminProducts,
   clearProducts,
+  toggleProductForSales,
   exportProductsCSV,
   importProductsCSV,
 } from "../../../redux/features/product/productsSlices";
@@ -54,6 +55,16 @@ const ProductsDashboard = () => {
     dispatch(clearProducts());
     dispatch(fetchAdminProducts(buildFilterParams(filters)));
   }, [filters]);
+
+  const handleToggle = (productId, for_sales) => {
+    dispatch(
+      toggleProductForSales({
+        productId: productId,
+        for_sales: !for_sales, // Esto invierte el valor booleano
+      })
+    );
+    
+  };
 
   const handleFilterChange = (field, value) => {
     const updated = { ...filters, [field]: value };
@@ -288,8 +299,14 @@ const ProductsDashboard = () => {
                         >
                           Editar
                         </Link>
-                        <button className="text-red-700 underline">
-                          Desactivar
+                        <button
+                          onClick={() =>
+                            handleToggle(product.id, product.for_sales)
+                          }
+                        >
+                          {product.for_sales
+                            ? (<span className="underline text-red-600">Desactivar</span>)
+                            : (<span className="underline text-green-600">Activar</span>)}
                         </button>
                       </td>
                     </tr>

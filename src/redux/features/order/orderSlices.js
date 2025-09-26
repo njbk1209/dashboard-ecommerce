@@ -3,10 +3,11 @@ import axios from "axios";
 
 const initialState = {
   orders: [],
-  orderDetails: null,
+  order: null,
   paymentProof: null,
   orderNotes: [],
   orderStatus: "idle",
+  notesStatus: "idle",
   error: null,
 };
 
@@ -58,7 +59,7 @@ export const fetchOrderById = createAsyncThunk(
         `http://127.0.0.1:8000/api/order/get-order/${orderId}/`,
         config
       );
-
+      console.log(response.data);
       return response.data;
     } catch (error) {
       const message =
@@ -67,6 +68,7 @@ export const fetchOrderById = createAsyncThunk(
         error.message ||
         "Error al obtener la orden";
       toast.error(message);
+      console.log(error);
       return rejectWithValue(message);
     }
   }
@@ -146,10 +148,10 @@ export const fetchOrderDetails = createAsyncThunk(
           },
         }
       );
-      console.log(response.data)
+      console.log(response.data);
       return response.data;
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return thunkAPI.rejectWithValue(
         error.response?.data || "Error al obtener detalles de la orden"
       );
@@ -192,6 +194,29 @@ export const updateOrderItems = createAsyncThunk(
     } catch (error) {
       return thunkAPI.rejectWithValue(
         error.response?.data || "Error al actualizar los items de la orden"
+      );
+    }
+  }
+);
+
+export const fetchOrderNotes = createAsyncThunk(
+  "orders/fetchOrderNotes",
+  async (orderId, thunkAPI) => {
+    try {
+      const token = localStorage.getItem("access");
+      const response = await axios.get(
+        `${API_URL}api/order/get-notes/${orderId}/`,
+        {
+          headers: {
+            Authorization: token ? `JWT ${token}` : "",
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.log(error);
+      return thunkAPI.rejectWithValue(
+        error.response?.data || "Error al obtener notas de la orden"
       );
     }
   }
@@ -267,14 +292,14 @@ const adminOrdersSlice = createSlice({
       .addCase(updateOrderItems.fulfilled, (state, action) => {
         state.status = "succeeded";
         // Actualizar los items en los detalles de la orden si están disponibles
-        if (state.orderDetails) {
+        if (state.order) {
           // La respuesta de la API debería incluir los items actualizados
-          state.orderDetails.items =
-            action.payload.items || state.orderDetails.items;
+          state.order.items =
+            action.payload.items || state.order.items;
 
           // Actualizar el total si está disponible en la respuesta
           if (action.payload.total) {
-            state.orderDetails.total = action.payload.total;
+            state.order.total = action.payload.total;
           }
         }
       })
@@ -288,10 +313,22 @@ const adminOrdersSlice = createSlice({
       })
       .addCase(fetchOrderDetails.fulfilled, (state, action) => {
         state.status = "succeeded";
-        state.orderDetails = action.payload;
+        state.order = action.payload;
       })
       .addCase(fetchOrderDetails.rejected, (state, action) => {
         state.status = "failed";
+        state.error = action.payload;
+      })
+      // Reducers para fetchOrderNotes
+      .addCase(fetchOrderNotes.pending, (state) => {
+        state.notesStatus = "loading";
+      })
+      .addCase(fetchOrderNotes.fulfilled, (state, action) => {
+        state.notesStatus = "succeeded";
+        state.orderNotes = action.payload;
+      })
+      .addCase(fetchOrderNotes.rejected, (state, action) => {
+        state.notesStatus = "failed";
         state.error = action.payload;
       });
   },

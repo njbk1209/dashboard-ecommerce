@@ -193,6 +193,24 @@ const Dashboard = () => {
                       </ListItemSuffix>
                     </ListItem>
                   </NavLink>
+
+                  <NavLink to="users">
+                    <ListItem onClick={closeDrawer}>
+                      <ListItemPrefix>
+                        <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
+                      </ListItemPrefix>
+                      Usuarios
+                      <ListItemSuffix>
+                        <Chip
+                          value="14"
+                          size="sm"
+                          variant="ghost"
+                          color="blue-gray"
+                          className="rounded-full"
+                        />
+                      </ListItemSuffix>
+                    </ListItem>
+                  </NavLink>
                 </List>
               </AccordionBody>
             </Accordion>
