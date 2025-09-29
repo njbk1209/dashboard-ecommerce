@@ -9,6 +9,20 @@ const initialState = {
   orderStatus: "idle",
   notesStatus: "idle",
   error: null,
+
+  dashboard: {
+    status: "idle", // 'idle' | 'loading' | 'succeeded' | 'failed'
+    data: null, // { filters, kpis, timeseries, alerts, latest_orders, top_products_* }
+    error: null,
+    params: {
+      start: null, // e.g. '2025-09-01'
+      end: null, // e.g. '2025-09-26'
+      group_by: "day", // 'day' | 'week' | 'month'
+      status: "delivered", // 'delivered' | 'all' (afecta secciones exitosas)
+      latest_limit: 10,
+      top_n: 5,
+    },
+  },
 };
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -222,6 +236,48 @@ export const fetchOrderNotes = createAsyncThunk(
   }
 );
 
+// Helper para qs
+const toQuery = (obj = {}) =>
+  Object.entries(obj)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join("&");
+
+// GET /api/order/info-dashboard/
+export const fetchDashboardOverview = createAsyncThunk(
+  "adminOrders/fetchDashboardOverview",
+  async (params = {}, { rejectWithValue, getState }) => {
+    const token = localStorage.getItem("access");
+    if (!token) return rejectWithValue("No access token");
+
+    // mezcla con defaults guardados en el state
+    const state = getState();
+    const defaults = state.adminOrders?.dashboard?.params || {};
+    const q = { ...defaults, ...params };
+    const qs = toQuery(q);
+
+    try {
+      const res = await axios.get(
+        `${API_URL}/api/order/info-dashboard/${qs ? `?${qs}` : ""}`,
+        {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `JWT ${token}`,
+          },
+        }
+      );
+      return { data: res.data, params: q };
+    } catch (error) {
+      const msg =
+        error?.response?.data?.detail ||
+        error?.response?.data ||
+        "Error al obtener el dashboard";
+      return rejectWithValue(msg);
+    }
+  }
+);
+
 const adminOrdersSlice = createSlice({
   name: "adminOrders",
   initialState,
@@ -294,8 +350,7 @@ const adminOrdersSlice = createSlice({
         // Actualizar los items en los detalles de la orden si están disponibles
         if (state.order) {
           // La respuesta de la API debería incluir los items actualizados
-          state.order.items =
-            action.payload.items || state.order.items;
+          state.order.items = action.payload.items || state.order.items;
 
           // Actualizar el total si está disponible en la respuesta
           if (action.payload.total) {
@@ -330,6 +385,22 @@ const adminOrdersSlice = createSlice({
       .addCase(fetchOrderNotes.rejected, (state, action) => {
         state.notesStatus = "failed";
         state.error = action.payload;
+      })
+      .addCase(fetchDashboardOverview.pending, (state) => {
+        state.dashboard.status = "loading";
+        state.dashboard.error = null;
+      })
+      .addCase(fetchDashboardOverview.fulfilled, (state, action) => {
+        state.dashboard.status = "succeeded";
+        state.dashboard.data = action.payload.data;
+        state.dashboard.params = action.payload.params;
+      })
+      .addCase(fetchDashboardOverview.rejected, (state, action) => {
+        state.dashboard.status = "failed";
+        state.dashboard.error =
+          typeof action.payload === "string"
+            ? action.payload
+            : "No se pudo cargar el dashboard";
       });
   },
 });
