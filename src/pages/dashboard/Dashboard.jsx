@@ -80,9 +80,8 @@ const Dashboard = () => {
               icon={
                 <ChevronDownIcon
                   strokeWidth={2.5}
-                  className={`mx-auto h-4 w-4 transition-transform ${
-                    open === 1 ? "rotate-180" : ""
-                  }`}
+                  className={`mx-auto h-4 w-4 transition-transform ${open === 1 ? "rotate-180" : ""
+                    }`}
                 />
               }
             >
@@ -101,27 +100,21 @@ const Dashboard = () => {
               </ListItem>
               <AccordionBody className="py-1">
                 <List className="p-0">
-                  <ListItem>
-                    <ListItemPrefix>
-                      <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
-                    </ListItemPrefix>
-                    Analytics
-                  </ListItem>
+                  <NavLink to="/dashboard">
+                    <ListItem>
+                      <ListItemPrefix>
+                        <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
+                      </ListItemPrefix>
+                      Inicio
+
+                    </ListItem>
+                  </NavLink>
                   <NavLink to="reporting">
                     <ListItem onClick={closeDrawer}>
                       <ListItemPrefix>
                         <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
                       </ListItemPrefix>
                       Ventas
-                      <ListItemSuffix>
-                        <Chip
-                          value="14"
-                          size="sm"
-                          variant="ghost"
-                          color="blue-gray"
-                          className="rounded-full"
-                        />
-                      </ListItemSuffix>
                     </ListItem>
                   </NavLink>
                   <ListItem>
@@ -138,9 +131,8 @@ const Dashboard = () => {
               icon={
                 <ChevronDownIcon
                   strokeWidth={2.5}
-                  className={`mx-auto h-4 w-4 transition-transform ${
-                    open === 2 ? "rotate-180" : ""
-                  }`}
+                  className={`mx-auto h-4 w-4 transition-transform ${open === 2 ? "rotate-180" : ""
+                    }`}
                 />
               }
             >
@@ -165,15 +157,6 @@ const Dashboard = () => {
                         <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
                       </ListItemPrefix>
                       Pedidos
-                      <ListItemSuffix>
-                        <Chip
-                          value="14"
-                          size="sm"
-                          variant="ghost"
-                          color="blue-gray"
-                          className="rounded-full"
-                        />
-                      </ListItemSuffix>
                     </ListItem>
                   </NavLink>
                   <NavLink to="products">
@@ -182,15 +165,6 @@ const Dashboard = () => {
                         <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
                       </ListItemPrefix>
                       Productos
-                      <ListItemSuffix>
-                        <Chip
-                          value="14"
-                          size="sm"
-                          variant="ghost"
-                          color="blue-gray"
-                          className="rounded-full"
-                        />
-                      </ListItemSuffix>
                     </ListItem>
                   </NavLink>
 
@@ -200,15 +174,6 @@ const Dashboard = () => {
                         <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
                       </ListItemPrefix>
                       Usuarios
-                      <ListItemSuffix>
-                        <Chip
-                          value="14"
-                          size="sm"
-                          variant="ghost"
-                          color="blue-gray"
-                          className="rounded-full"
-                        />
-                      </ListItemSuffix>
                     </ListItem>
                   </NavLink>
                 </List>

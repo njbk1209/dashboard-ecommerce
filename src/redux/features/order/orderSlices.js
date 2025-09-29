@@ -1,5 +1,7 @@
+// src/redux/features/order/adminOrdersSlice.js
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
+import { toast } from "react-hot-toast"; // lo usabas en fetchOrderById
 
 const initialState = {
   orders: [],
@@ -25,7 +27,106 @@ const initialState = {
   },
 };
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
+// ---------------------- Helpers ----------------------
+const toQuery = (obj = {}) =>
+  Object.entries(obj)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join("&");
+
+const toNumber = (v) => {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  if (typeof v === "string") {
+    const cleaned = v.replace(",", ".");
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : 0;
+  }
+  // por si viene Decimal serializado u otro objeto
+  try {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const normalizeDashboard = (raw) => {
+  if (!raw) return raw;
+
+  const kpis = raw.kpis || {};
+  const normalizeKpis = {
+    ...kpis,
+    revenue_usd: toNumber(kpis.revenue_usd),
+    revenue_bs: toNumber(kpis.revenue_bs),
+    subtotal_usd: toNumber(kpis.subtotal_usd),
+    iva_usd: toNumber(kpis.iva_usd),
+    shipping_subtotal_usd: toNumber(kpis.shipping_subtotal_usd),
+    shipping_iva_usd: toNumber(kpis.shipping_iva_usd),
+    shipping_total_usd: toNumber(kpis.shipping_total_usd),
+    orders_count: toNumber(kpis.orders_count),
+    customers_count: toNumber(kpis.customers_count),
+    units_sold: toNumber(kpis.units_sold),
+    aov_usd: toNumber(kpis.aov_usd),
+  };
+
+  const timeseries = Array.isArray(raw.timeseries)
+    ? raw.timeseries.map((r) => ({
+        ...r,
+        revenue_usd: toNumber(r.revenue_usd),
+        shipping_total_usd: toNumber(r.shipping_total_usd),
+        orders: toNumber(r.orders),
+        units: toNumber(r.units),
+        date: r.date,
+      }))
+    : [];
+
+  const monthly_sales = Array.isArray(raw.monthly_sales)
+    ? raw.monthly_sales.map((r) => ({
+        date: r.date,
+        day: toNumber(r.day),
+        revenue_usd: toNumber(r.revenue_usd),
+      }))
+    : [];
+
+  const top_products_qty = Array.isArray(raw.top_products_qty)
+    ? raw.top_products_qty.map((p) => ({
+        ...p,
+        qty: toNumber(p.qty),
+        revenue_usd: toNumber(p.revenue_usd),
+      }))
+    : [];
+
+  const top_products_revenue = Array.isArray(raw.top_products_revenue)
+    ? raw.top_products_revenue.map((p) => ({
+        ...p,
+        qty: toNumber(p.qty),
+        revenue_usd: toNumber(p.revenue_usd),
+      }))
+    : [];
+
+  const latest_orders = Array.isArray(raw.latest_orders)
+    ? raw.latest_orders.map((o) => ({
+        ...o,
+        total_amount: toNumber(o.total_amount),
+        items: toNumber(o.items),
+      }))
+    : [];
+
+  return {
+    ...raw,
+    kpis: normalizeKpis,
+    timeseries,
+    monthly_sales,
+    top_products_qty,
+    top_products_revenue,
+    latest_orders,
+  };
+};
+
+// ---------------------- Thunks (mantengo los tuyos y reemplazo fetchDashboardOverview) ----------------------
 
 // filters es un objeto con claves opcionales: { status, user, date_from, date_to }
 export const fetchAdminOrders = createAsyncThunk(
@@ -236,14 +337,7 @@ export const fetchOrderNotes = createAsyncThunk(
   }
 );
 
-// Helper para qs
-const toQuery = (obj = {}) =>
-  Object.entries(obj)
-    .filter(([, v]) => v !== undefined && v !== null && v !== "")
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-    .join("&");
-
-// GET /api/order/info-dashboard/
+// ---------------------- fetchDashboardOverview (reemplazado) ----------------------
 export const fetchDashboardOverview = createAsyncThunk(
   "adminOrders/fetchDashboardOverview",
   async (params = {}, { rejectWithValue, getState }) => {
@@ -267,7 +361,11 @@ export const fetchDashboardOverview = createAsyncThunk(
           },
         }
       );
-      return { data: res.data, params: q };
+
+      // Normalizar la payload para el frontend (Number en vez de strings/Decimal)
+      const normalized = normalizeDashboard(res.data);
+
+      return { data: normalized, params: q };
     } catch (error) {
       const msg =
         error?.response?.data?.detail ||
@@ -278,6 +376,7 @@ export const fetchDashboardOverview = createAsyncThunk(
   }
 );
 
+// ---------------------- Slice ----------------------
 const adminOrdersSlice = createSlice({
   name: "adminOrders",
   initialState,
