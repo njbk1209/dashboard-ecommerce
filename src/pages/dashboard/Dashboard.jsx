@@ -106,7 +106,6 @@ const Dashboard = () => {
                         <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
                       </ListItemPrefix>
                       Inicio
-
                     </ListItem>
                   </NavLink>
                   <NavLink to="reporting">
@@ -117,12 +116,7 @@ const Dashboard = () => {
                       Ventas
                     </ListItem>
                   </NavLink>
-                  <ListItem>
-                    <ListItemPrefix>
-                      <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
-                    </ListItemPrefix>
-                    Projects
-                  </ListItem>
+
                 </List>
               </AccordionBody>
             </Accordion>
@@ -157,6 +151,14 @@ const Dashboard = () => {
                         <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
                       </ListItemPrefix>
                       Pedidos
+                    </ListItem>
+                  </NavLink>
+                  <NavLink to="shipping">
+                    <ListItem>
+                      <ListItemPrefix>
+                        <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
+                      </ListItemPrefix>
+                      Envios disponibles
                     </ListItem>
                   </NavLink>
                   <NavLink to="products">

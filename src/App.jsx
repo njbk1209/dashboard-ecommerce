@@ -9,6 +9,7 @@ import Reporting from "./pages/dashboard/reporting";
 import SalesDetail from "./pages/dashboard/reporting/SalesDetail";
 import AdminUsers from "./pages/dashboard/users/Users";
 import AdminUserDetail from "./pages/dashboard/users/AdminUserDetail";
+import TravelList from "./pages/dashboard/shipping/TravelList";
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
         <Route path="users" element={<AdminUsers />} />
         <Route path="user/:id" element={<AdminUserDetail />} />
 
+        <Route path="shipping" element={<TravelList />} />
 
         <Route path="reporting" element={<Reporting />} />
         <Route path="reporting/sales-detail/:id" element={<SalesDetail />} />
