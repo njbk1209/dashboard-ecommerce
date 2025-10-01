@@ -116,6 +116,14 @@ const Dashboard = () => {
                       Ventas
                     </ListItem>
                   </NavLink>
+                  <NavLink to="shipping/cuts">
+                    <ListItem>
+                      <ListItemPrefix>
+                        <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
+                      </ListItemPrefix>
+                      Cortes de envío
+                    </ListItem>
+                  </NavLink>
 
                 </List>
               </AccordionBody>
@@ -158,7 +166,7 @@ const Dashboard = () => {
                       <ListItemPrefix>
                         <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
                       </ListItemPrefix>
-                      Envios disponibles
+                      Envíos
                     </ListItem>
                   </NavLink>
                   <NavLink to="products">

@@ -10,6 +10,7 @@ import SalesDetail from "./pages/dashboard/reporting/SalesDetail";
 import AdminUsers from "./pages/dashboard/users/Users";
 import AdminUserDetail from "./pages/dashboard/users/AdminUserDetail";
 import TravelList from "./pages/dashboard/shipping/TravelList";
+import CutsListTravels from "./pages/dashboard/reporting/CutsListTravels";
 
 function App() {
   return (
@@ -26,6 +27,9 @@ function App() {
         <Route path="user/:id" element={<AdminUserDetail />} />
 
         <Route path="shipping" element={<TravelList />} />
+        <Route path="shipping/cuts" element={<CutsListTravels />} />
+
+
 
         <Route path="reporting" element={<Reporting />} />
         <Route path="reporting/sales-detail/:id" element={<SalesDetail />} />

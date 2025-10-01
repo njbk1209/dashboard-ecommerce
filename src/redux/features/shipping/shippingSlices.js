@@ -118,6 +118,137 @@ export const markTravelDelivered = createAsyncThunk(
   }
 );
 
+// agregar al top de tu archivo donde ya importas createAsyncThunk y axios
+export const fetchCuts = createAsyncThunk(
+  "shipping/fetchCuts",
+  async (params = {}, { rejectWithValue }) => {
+    const token = localStorage.getItem("access");
+    try {
+      const searchParams = new URLSearchParams();
+
+      // params esperados: page, page_size, status (opcional)
+      Object.entries(params).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === "") return;
+        // casteos simples
+        if (typeof value === "boolean") searchParams.append(key, value ? "true" : "false");
+        else searchParams.append(key, String(value));
+      });
+
+      const url = searchParams.toString()
+        ? `${API_URL}/api/shipping/get-cuts/?${searchParams.toString()}`
+        : `${API_URL}/api/shipping/get-cuts/`;
+
+      const response = await axios.get(url, {
+        headers: { Authorization: `JWT ${token}` },
+      });
+
+      const data = response.data;
+      // Si el backend usa paginación DRF estándar devuelve {count, next, previous, results}
+      if (data && Array.isArray(data.results)) {
+        return {
+          cuts: data.results,
+          meta: {
+            count: data.count ?? data.results.length,
+            next: data.next ?? null,
+            previous: data.previous ?? null,
+          },
+        };
+      }
+
+      // Si backend devuelve una lista simple
+      return {
+        cuts: Array.isArray(data) ? data : [data],
+        meta: { count: Array.isArray(data) ? data.length : 1, next: null, previous: null },
+      };
+    } catch (error) {
+      // Manejo robusto del error
+      const payload = error.response?.data || error.message || "Error al obtener cortes";
+      return rejectWithValue(payload);
+    }
+  }
+);
+
+export const createCut = createAsyncThunk(
+  "shipping/createCut",
+  /**
+   * payload: {
+   *   start_date: string (ISO date e.g. "2025-09-01T00:00:00Z" o "2025-09-01"),
+   *   end_date: string,
+   *   exchange_rate: string|number (opcional),
+   *   note: string (opcional),
+   *   refreshAfter: boolean (opcional) -> si true disparará fetchCuts al finalizar (en el componente puedes usar unwrap)
+   * }
+   */
+  async (payload = {}, { rejectWithValue, dispatch }) => {
+    const token = localStorage.getItem("access");
+    try {
+      const url = `${API_URL}/api/shipping/create-cut/`;
+      // Preparar body
+      const body = {
+        start_date: payload.start_date,
+        end_date: payload.end_date,
+      };
+      if (payload.exchange_rate !== undefined && payload.exchange_rate !== null && payload.exchange_rate !== "") {
+        body.exchange_rate = String(payload.exchange_rate);
+      }
+      if (payload.note) body.note = payload.note;
+
+      // Hacemos POST esperando un PDF (blob)
+      const response = await axios.post(url, body, {
+        headers: {
+          Authorization: `JWT ${token}`,
+          "Content-Type": "application/json",
+          Accept: "*/*",
+        },
+        responseType: "blob",
+      });
+
+      // Si llegamos aquí, probablemente recibimos un blob (PDF).
+      const contentDisposition = response.headers["content-disposition"] || "";
+      // intentar obtener filename de header
+      let filename = `corte_${new Date().toISOString().replace(/[:.]/g, "")}.pdf`;
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match && match[1]) filename = match[1];
+
+      // Crear blob URL y forzar descarga
+      const blob = new Blob([response.data], { type: response.data.type || "application/pdf" });
+      const urlBlob = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = urlBlob;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(urlBlob);
+
+      // opcional: refrescar lista de cortes si se pidió
+      if (payload.refreshAfter) {
+        // refrescar la primera página por defecto (puedes cambiar params)
+        dispatch(fetchCuts({ page: 1, page_size: 20 }));
+      }
+
+      // retornamos metadata por si el componente necesita info
+      return { filename };
+    } catch (err) {
+      // Si el backend respondió con JSON de error pero convirtiéndolo a blob, parsearlo
+      const response = err?.response;
+      if (response && response.data && response.data instanceof Blob) {
+        try {
+          const text = await response.data.text();
+          const parsed = JSON.parse(text);
+          return rejectWithValue(parsed);
+        } catch (parseErr) {
+          return rejectWithValue(response.statusText || "Error desconocido al crear corte");
+        }
+      }
+
+      const payloadErr = err.response?.data || err.message || "Error al crear corte";
+      return rejectWithValue(payloadErr);
+    }
+  }
+);
+
+
 // ----------------------------------------
 // Slice
 // ----------------------------------------
@@ -125,21 +256,29 @@ const initialState = {
   travels: [],
   meta: { count: 0, next: null, previous: null },
   couriers: [],
+  cuts: [],
+  cutsMeta: { count: 0, next: null, previous: null },
 
   // estados separados para que no se pisen en UI
   statusTravels: "idle",
   statusCouriers: "idle",
   statusAssign: "idle",
   statusDeliver: "idle",
+  statusCuts: "idle",
+  statusCreateCut: "idle",   // 'idle' | 'loading' | 'succeeded' | 'failed'
 
   errorTravels: null,
   errorCouriers: null,
   errorAssign: null,
   errorDeliver: null,
+  errorCuts: null,
+  errorCreateCut: null,
+  lastCreatedCutFileName: null, // nombre del PDF descargado (opcional)
 
   // útil para redirección después de marcar entregado
   lastDeliveredOrderId: null,
 };
+
 
 const shippingSlice = createSlice({
   name: "shipping",
@@ -164,6 +303,17 @@ const shippingSlice = createSlice({
       state.statusDeliver = "idle";
       state.errorDeliver = null;
       state.lastDeliveredOrderId = null;
+    },
+    clearCutsState(state) {
+      state.cuts = [];
+      state.cutsMeta = { count: 0, next: null, previous: null };
+      state.statusCuts = "idle";
+      state.errorCuts = null;
+    },
+    clearCreateCutState(state) {
+      state.statusCreateCut = "idle";
+      state.errorCreateCut = null;
+      state.lastCreatedCutFileName = null;
     },
   },
   extraReducers: (builder) => {
@@ -257,6 +407,37 @@ const shippingSlice = createSlice({
         state.statusDeliver = "failed";
         state.errorDeliver = action.payload || action.error?.message;
       });
+    builder
+      .addCase(fetchCuts.pending, (state) => {
+        state.statusCuts = "loading";
+        state.errorCuts = null;
+      })
+      .addCase(fetchCuts.fulfilled, (state, action) => {
+        state.statusCuts = "succeeded";
+        state.cuts = action.payload.cuts;
+        state.cutsMeta = action.payload.meta;
+      })
+      .addCase(fetchCuts.rejected, (state, action) => {
+        state.statusCuts = "failed";
+        state.errorCuts = action.payload || action.error?.message;
+      });
+    builder
+      .addCase(createCut.pending, (state) => {
+        state.statusCreateCut = "loading";
+        state.errorCreateCut = null;
+        state.lastCreatedCutFileName = null;
+      })
+      .addCase(createCut.fulfilled, (state, action) => {
+        state.statusCreateCut = "succeeded";
+        state.errorCreateCut = null;
+        state.lastCreatedCutFileName = action.payload?.filename || null;
+      })
+      .addCase(createCut.rejected, (state, action) => {
+        state.statusCreateCut = "failed";
+        state.errorCreateCut = action.payload || action.error?.message;
+        state.lastCreatedCutFileName = null;
+      });
+
   },
 });
 
@@ -265,6 +446,8 @@ export const {
   clearCouriersState,
   clearAssignState,
   clearDeliverState,
+  clearCutsState,
+  clearCreateCutState,
 } = shippingSlice.actions;
 
 export default shippingSlice.reducer;

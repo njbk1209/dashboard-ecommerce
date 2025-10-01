@@ -219,7 +219,7 @@ const Index = () => {
       </div>
 
       {/* Filtros */}
-      <div className="border border-gray-200 rounded bg-gray-50 p-4 mb-5">
+      <div className="border border-gray-200 rounded bg-white p-4 mb-5">
         <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <div>
             <label className="block text-sm text-gray-600 mb-1">Desde</label>
@@ -297,7 +297,7 @@ const Index = () => {
         {kpiCards.map((k) => (
           <div
             key={k.title}
-            className="border border-gray-200  rounded p-4 flex items-center gap-3 bg-gray-50"
+            className="border border-gray-200  rounded p-4 flex items-center gap-3 bg-white"
           >
             <k.icon className="h-8 w-8 text-green-400" />
             <div>
@@ -310,7 +310,7 @@ const Index = () => {
 
       {/* Ventas por día + Alertas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5 ">
-        <div className="lg:col-span-2 border border-gray-200 rounded p-4 bg-gray-50">
+        <div className="lg:col-span-2 border border-gray-200 rounded p-4 bg-white">
           <div className="flex items-center justify-between mb-4 ">
             <h3 className="text-base font-semibold">Ventas por día</h3>
             <div className="text-xs text-red-500 font-medium">
@@ -375,7 +375,7 @@ const Index = () => {
           </div>
         </div>
 
-        <div className="border border-gray-200 rounded p-4 bg-gray-50">
+        <div className="border border-gray-200 rounded p-4 bg-white">
           <h3 className="text-base font-semibold mb-3">Salud de órdenes</h3>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <AlertPill
@@ -427,7 +427,7 @@ const Index = () => {
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-white">
               <tr>
                 <Th>#</Th>
                 <Th>Fecha</Th>
