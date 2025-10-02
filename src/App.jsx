@@ -11,6 +11,7 @@ import AdminUsers from "./pages/dashboard/users/Users";
 import AdminUserDetail from "./pages/dashboard/users/AdminUserDetail";
 import TravelList from "./pages/dashboard/shipping/TravelList";
 import CutsListTravels from "./pages/dashboard/reporting/CutsListTravels";
+import OrderCutsList from "./pages/dashboard/reporting/OrderCutsList";
 
 function App() {
   return (
@@ -20,6 +21,8 @@ function App() {
         <Route index element={<Index />} />
         <Route path="orders" element={<Orders />} />
         <Route path="order/:order_id" element={<OrderDetail />} />
+        <Route path="orders/order-cuts" element={<OrderCutsList />} />
+
 
         <Route path="products" element={<ProductsDashboard />} />
 

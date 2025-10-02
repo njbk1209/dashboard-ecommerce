@@ -124,7 +124,14 @@ const Dashboard = () => {
                       Cortes de envío
                     </ListItem>
                   </NavLink>
-
+                  <NavLink to="orders/order-cuts">
+                    <ListItem>
+                      <ListItemPrefix>
+                        <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
+                      </ListItemPrefix>
+                      Cortes de ventas
+                    </ListItem>
+                  </NavLink>
                 </List>
               </AccordionBody>
             </Accordion>

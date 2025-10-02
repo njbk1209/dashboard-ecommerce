@@ -13,18 +13,35 @@ const initialState = {
   error: null,
 
   dashboard: {
-    status: "idle", // 'idle' | 'loading' | 'succeeded' | 'failed'
-    data: null, // { filters, kpis, timeseries, alerts, latest_orders, top_products_* }
+    status: "idle",
+    data: null,
     error: null,
     params: {
-      start: null, // e.g. '2025-09-01'
-      end: null, // e.g. '2025-09-26'
-      group_by: "day", // 'day' | 'week' | 'month'
-      status: "delivered", // 'delivered' | 'all' (afecta secciones exitosas)
+      start: null,
+      end: null,
+      group_by: "day",
+      status: "delivered",
       latest_limit: 10,
       top_n: 5,
     },
   },
+
+  // Order cuts (list)
+  orderCuts: [],
+  orderCutsMeta: { count: 0, next: null, previous: null },
+  statusOrderCuts: "idle",
+  errorOrderCuts: null,
+
+  // Create order cut
+  statusCreateOrderCut: "idle",
+  errorCreateOrderCut: null,
+  lastCreatedOrderCutFileName: null,
+
+  // Delete / download states (opcionales)
+  statusDeleteOrderCut: "idle",
+  errorDeleteOrderCut: null,
+  statusDownloadOrderCutPdf: "idle",
+  errorDownloadOrderCutPdf: null,
 };
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
@@ -74,45 +91,45 @@ const normalizeDashboard = (raw) => {
 
   const timeseries = Array.isArray(raw.timeseries)
     ? raw.timeseries.map((r) => ({
-        ...r,
-        revenue_usd: toNumber(r.revenue_usd),
-        shipping_total_usd: toNumber(r.shipping_total_usd),
-        orders: toNumber(r.orders),
-        units: toNumber(r.units),
-        date: r.date,
-      }))
+      ...r,
+      revenue_usd: toNumber(r.revenue_usd),
+      shipping_total_usd: toNumber(r.shipping_total_usd),
+      orders: toNumber(r.orders),
+      units: toNumber(r.units),
+      date: r.date,
+    }))
     : [];
 
   const monthly_sales = Array.isArray(raw.monthly_sales)
     ? raw.monthly_sales.map((r) => ({
-        date: r.date,
-        day: toNumber(r.day),
-        revenue_usd: toNumber(r.revenue_usd),
-      }))
+      date: r.date,
+      day: toNumber(r.day),
+      revenue_usd: toNumber(r.revenue_usd),
+    }))
     : [];
 
   const top_products_qty = Array.isArray(raw.top_products_qty)
     ? raw.top_products_qty.map((p) => ({
-        ...p,
-        qty: toNumber(p.qty),
-        revenue_usd: toNumber(p.revenue_usd),
-      }))
+      ...p,
+      qty: toNumber(p.qty),
+      revenue_usd: toNumber(p.revenue_usd),
+    }))
     : [];
 
   const top_products_revenue = Array.isArray(raw.top_products_revenue)
     ? raw.top_products_revenue.map((p) => ({
-        ...p,
-        qty: toNumber(p.qty),
-        revenue_usd: toNumber(p.revenue_usd),
-      }))
+      ...p,
+      qty: toNumber(p.qty),
+      revenue_usd: toNumber(p.revenue_usd),
+    }))
     : [];
 
   const latest_orders = Array.isArray(raw.latest_orders)
     ? raw.latest_orders.map((o) => ({
-        ...o,
-        total_amount: toNumber(o.total_amount),
-        items: toNumber(o.items),
-      }))
+      ...o,
+      total_amount: toNumber(o.total_amount),
+      items: toNumber(o.items),
+    }))
     : [];
 
   return {
@@ -212,7 +229,7 @@ export const fetchPaymentProofById = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.detail ||
-          "Error al obtener el comprobante de pago"
+        "Error al obtener el comprobante de pago"
       );
     }
   }
@@ -376,6 +393,237 @@ export const fetchDashboardOverview = createAsyncThunk(
   }
 );
 
+// ---------------------- NUEVO thunk: fetchOrderCuts ----------------------
+export const fetchOrderCuts = createAsyncThunk(
+  "adminOrders/fetchOrderCuts",
+  /**
+   * params: { page, page_size, status (optional), ... }
+   */
+  async (params = {}, { rejectWithValue }) => {
+    const token = localStorage.getItem("access");
+    try {
+      const searchParams = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => {
+        if (v === undefined || v === null || v === "") return;
+        searchParams.append(k, String(v));
+      });
+
+      const url =
+        searchParams.toString() !== ""
+          ? `${API_URL}/api/order/get-order-cuts/?${searchParams.toString()}`
+          : `${API_URL}/api/order/get-order-cuts/`;
+
+      const config = {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `JWT ${token}`,
+        },
+      };
+
+      const response = await axios.get(url, config);
+      const data = response.data;
+
+      // Soportar paginación DRF estándar o lista simple
+      if (data && Array.isArray(data.results)) {
+        return {
+          cuts: data.results,
+          meta: {
+            count: data.count ?? data.results.length,
+            next: data.next ?? null,
+            previous: data.previous ?? null,
+          },
+        };
+      }
+
+      return {
+        cuts: Array.isArray(data) ? data : [data],
+        meta: { count: Array.isArray(data) ? data.length : 1, next: null, previous: null },
+      };
+    } catch (error) {
+      const payload = error.response?.data || error.message || "Error al obtener cortes de órdenes";
+      return rejectWithValue(payload);
+    }
+  }
+);
+
+export const createOrderCut = createAsyncThunk(
+  "adminOrders/createOrderCut",
+  async (payload = {}, { rejectWithValue, dispatch }) => {
+    const token = localStorage.getItem("access");
+    try {
+      const url = `${API_URL}/api/order/create-cut-orders/`;
+      const body = {
+        start_date: payload.start_date,
+        end_date: payload.end_date,
+      };
+      if (payload.exchange_rate !== undefined && payload.exchange_rate !== null && payload.exchange_rate !== "") {
+        body.exchange_rate = String(payload.exchange_rate);
+      }
+      if (payload.note) body.note = payload.note;
+
+      const response = await axios.post(url, body, {
+        headers: {
+          Authorization: `JWT ${token}`,
+          "Content-Type": "application/json",
+          Accept: "*/*",
+        },
+        responseType: "blob",
+      });
+
+      // se recibió blob (pdf). Intentar extraer filename del header
+      const contentDisposition = response.headers["content-disposition"] || "";
+      let filename = `corte_ordenes_${new Date().toISOString().replace(/[:.]/g, "")}.pdf`;
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match && match[1]) filename = match[1];
+
+      // Forzar descarga
+      const blob = new Blob([response.data], { type: response.data.type || "application/pdf" });
+      const urlBlob = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = urlBlob;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(urlBlob);
+
+      // refrescar lista si se solicitó
+      if (payload.refreshAfter) {
+        dispatch(fetchOrderCuts({ page: 1, page_size: 20 }));
+      }
+
+      return { filename };
+    } catch (err) {
+      // si el backend devolvió json de error empaquetado en blob, parsearlo
+      const resp = err?.response;
+      if (resp && resp.data && resp.data instanceof Blob) {
+        try {
+          const text = await resp.data.text();
+          const parsed = JSON.parse(text);
+          return rejectWithValue(parsed);
+        } catch (parseErr) {
+          return rejectWithValue(resp.statusText || "Error desconocido al crear corte de órdenes");
+        }
+      }
+      const payloadErr = err.response?.data || err.message || "Error al crear corte de órdenes";
+      return rejectWithValue(payloadErr);
+    }
+  }
+);
+
+// ---------------------- NUEVO thunk: downloadOrderCutPdf (GET blob, open in new tab) ----------------------
+export const downloadOrderCutPdf = createAsyncThunk(
+  "adminOrders/downloadOrderCutPdf",
+  async ({ cut_id, openInNewTab = true } = {}, { rejectWithValue }) => {
+    const token = localStorage.getItem("access");
+    try {
+      const url = `${API_URL}/api/order/cut/${cut_id}/pdf/`;
+      const response = await axios.get(url, {
+        headers: { Authorization: `JWT ${token}` },
+        responseType: "blob",
+      });
+
+      const contentDisposition = response.headers["content-disposition"] || "";
+      let filename = `corte_ordenes_${cut_id}.pdf`;
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match && match[1]) filename = match[1];
+
+      const blob = new Blob([response.data], { type: response.data.type || "application/pdf" });
+      const urlBlob = window.URL.createObjectURL(blob);
+
+      if (openInNewTab) {
+        window.open(urlBlob, "_blank");
+        setTimeout(() => window.URL.revokeObjectURL(urlBlob), 10000);
+      } else {
+        const a = document.createElement("a");
+        a.href = urlBlob;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(urlBlob);
+      }
+
+      return { filename, cut_id };
+    } catch (err) {
+      const resp = err?.response;
+      if (resp && resp.data && resp.data instanceof Blob) {
+        try {
+          const text = await resp.data.text();
+          const parsed = JSON.parse(text);
+          return rejectWithValue(parsed);
+        } catch (parseErr) {
+          return rejectWithValue(resp.statusText || "Error al obtener PDF del corte");
+        }
+      }
+      const payloadErr = err.response?.data || err.message || "Error al obtener PDF del corte";
+      return rejectWithValue(payloadErr);
+    }
+  }
+);
+
+// ---------------------- NUEVO thunk: deleteOrderCut (DELETE) ----------------------
+export const deleteOrderCut = createAsyncThunk(
+  "adminOrders/deleteOrderCut",
+  async ({ cut_id, refreshAfter = true, page = 1, page_size = 20 } = {}, { rejectWithValue, dispatch }) => {
+    const token = localStorage.getItem("access");
+    try {
+      const url = `${API_URL}/api/order/cut/${cut_id}/`;
+      const response = await axios.delete(url, {
+        headers: { Authorization: `JWT ${token}` },
+      });
+
+      if (refreshAfter) {
+        dispatch(fetchOrderCuts({ page, page_size }));
+      }
+
+      return { cut_id, status: response.status };
+    } catch (err) {
+      const payloadErr = err.response?.data || err.message || "Error al eliminar corte de órdenes";
+      return rejectWithValue(payloadErr);
+    }
+  }
+);
+
+// ---------------------- NUEVO thunk: payOrderCut ----------------------
+export const payOrderCut = createAsyncThunk(
+  "adminOrders/payOrderCut",
+  /**
+   * payload: { cut_id }
+   */
+  async ({ cut_id, refreshAfter = true } = {}, { rejectWithValue, dispatch }) => {
+    const token = localStorage.getItem("access");
+    if (!cut_id) return rejectWithValue("ID del corte no proporcionado");
+
+    try {
+      const url = `${API_URL}/api/order/pay-cut/${cut_id}/`;
+      const response = await axios.post(
+        url,
+        {}, // body vacío
+        {
+          headers: {
+            Authorization: `JWT ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      // refrescar lista de cortes si se solicita
+      if (refreshAfter) {
+        dispatch(fetchOrderCuts({ page: 1, page_size: 20 }));
+      }
+
+      return response.data; // { detail, cut_id, status, paid_at, total_amount, ... }
+    } catch (err) {
+      const resp = err?.response;
+      if (resp && resp.data) return rejectWithValue(resp.data);
+      return rejectWithValue(err.message || "Error al marcar corte como pagado");
+    }
+  }
+);
+
 // ---------------------- Slice ----------------------
 const adminOrdersSlice = createSlice({
   name: "adminOrders",
@@ -387,6 +635,26 @@ const adminOrdersSlice = createSlice({
     },
     clearPaymentProof: (state) => {
       state.paymentProof = null;
+    },
+    clearOrderCutsState: (state) => {
+      state.orderCuts = [];
+      state.orderCutsMeta = { count: 0, next: null, previous: null };
+      state.statusOrderCuts = "idle";
+      state.errorOrderCuts = null;
+    },
+    // Limpiar estado de creación de corte de órdenes
+    clearCreateOrderCutState: (state) => {
+      state.statusCreateOrderCut = "idle";
+      state.errorCreateOrderCut = null;
+      state.lastCreatedOrderCutFileName = null;
+    },
+    clearDeleteOrderCutState: (state) => {
+      state.statusDeleteOrderCut = "idle";
+      state.errorDeleteOrderCut = null;
+    },
+    clearDownloadOrderCutPdfState: (state) => {
+      state.statusDownloadOrderCutPdf = "idle";
+      state.errorDownloadOrderCutPdf = null;
     },
   },
   extraReducers: (builder) => {
@@ -500,9 +768,88 @@ const adminOrdersSlice = createSlice({
           typeof action.payload === "string"
             ? action.payload
             : "No se pudo cargar el dashboard";
-      });
+      })
+      .addCase(fetchOrderCuts.pending, (state) => {
+        state.statusOrderCuts = "loading";
+        state.errorOrderCuts = null;
+      })
+      .addCase(fetchOrderCuts.fulfilled, (state, action) => {
+        state.statusOrderCuts = "succeeded";
+        state.orderCuts = action.payload.cuts;
+        state.orderCutsMeta = action.payload.meta;
+      })
+      .addCase(fetchOrderCuts.rejected, (state, action) => {
+        state.statusOrderCuts = "failed";
+        state.errorOrderCuts = action.payload || action.error?.message || "Error al cargar cortes";
+      })
+      // createOrderCut
+      .addCase(createOrderCut.pending, (state) => {
+        state.statusCreateOrderCut = "loading";
+        state.errorCreateOrderCut = null;
+        state.lastCreatedOrderCutFileName = null;
+      })
+      .addCase(createOrderCut.fulfilled, (state, action) => {
+        state.statusCreateOrderCut = "succeeded";
+        state.errorCreateOrderCut = null;
+        state.lastCreatedOrderCutFileName = action.payload?.filename || null;
+      })
+      .addCase(createOrderCut.rejected, (state, action) => {
+        state.statusCreateOrderCut = "failed";
+        state.errorCreateOrderCut = action.payload || action.error?.message || "Error al crear corte de órdenes";
+        state.lastCreatedOrderCutFileName = null;
+      })
+      // downloadOrderCutPdf
+      .addCase(downloadOrderCutPdf.pending, (state) => {
+        state.statusDownloadOrderCutPdf = "loading";
+        state.errorDownloadOrderCutPdf = null;
+      })
+      .addCase(downloadOrderCutPdf.fulfilled, (state, action) => {
+        state.statusDownloadOrderCutPdf = "succeeded";
+        // keep filename available for UI if needed
+        state.lastCreatedOrderCutFileName = action.payload?.filename || null;
+      })
+      .addCase(downloadOrderCutPdf.rejected, (state, action) => {
+        state.statusDownloadOrderCutPdf = "failed";
+        state.errorDownloadOrderCutPdf = action.payload || action.error?.message || "Error al obtener PDF del corte";
+      })
+
+      // deleteOrderCut
+      .addCase(deleteOrderCut.pending, (state) => {
+        state.statusDeleteOrderCut = "loading";
+        state.errorDeleteOrderCut = null;
+      })
+      .addCase(deleteOrderCut.fulfilled, (state, action) => {
+        state.statusDeleteOrderCut = "succeeded";
+        const cutId = action.payload?.cut_id;
+        if (cutId) {
+          state.orderCuts = state.orderCuts.filter((c) => Number(c.id) !== Number(cutId));
+        }
+      })
+      .addCase(deleteOrderCut.rejected, (state, action) => {
+        state.statusDeleteOrderCut = "failed";
+        state.errorDeleteOrderCut = action.payload || action.error?.message || "Error al eliminar corte de órdenes";
+      })
+      .addCase(payOrderCut.pending, (state) => {
+        state.statusOrderCuts = "loading";
+        state.errorOrderCuts = null;
+      })
+      .addCase(payOrderCut.fulfilled, (state, action) => {
+        state.statusOrderCuts = "succeeded";
+        const updatedCut = action.payload;
+        // actualizar la lista si ya tenemos cortes cargados
+        if (state.orderCuts && updatedCut?.cut_id) {
+          state.orderCuts = state.orderCuts.map((c) =>
+            Number(c.id) === Number(updatedCut.cut_id) ? { ...c, ...updatedCut } : c
+          );
+        }
+      })
+      .addCase(payOrderCut.rejected, (state, action) => {
+        state.statusOrderCuts = "failed";
+        state.errorOrderCuts = action.payload || action.error?.message || "Error al pagar el corte";
+      })
   },
 });
 
-export const { clearOrder, clearPaymentProof } = adminOrdersSlice.actions;
+export const { clearOrder, clearPaymentProof, clearOrderCutsState, clearCreateOrderCutState, clearDeleteOrderCutState,
+  clearDownloadOrderCutPdfState, } = adminOrdersSlice.actions;
 export default adminOrdersSlice.reducer;

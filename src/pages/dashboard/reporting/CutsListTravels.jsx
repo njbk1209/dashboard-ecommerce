@@ -167,7 +167,7 @@ export default function CutsListTravels() {
   return (
     <div className="text-gray-900 space-y-4 bg-white">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl">Cortes</h1>
+        <h1 className="text-2xl">Cortes de envíos</h1>
         <div className="text-sm text-gray-600">{status === "loading" ? "Cargando..." : `Resultados: ${meta?.count ?? 0}`}</div>
       </div>
 
