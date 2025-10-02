@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -110,6 +111,7 @@ export const markTravelDelivered = createAsyncThunk(
         {},
         { headers: { Authorization: `JWT ${token}` } }
       );
+      toast.success("¡Envío marcado como exitoso satisfactoriamente!, cambia la orden a finalizada.")
       // El backend devuelve { order_id: <id> } — añadimos travel_id para uso local en reducer.
       return { order_id: response.data.order_id, travel_id };
     } catch (error) {
@@ -248,6 +250,128 @@ export const createCut = createAsyncThunk(
   }
 );
 
+export const payCut = createAsyncThunk(
+  "shipping/payCut",
+  /**
+   * payload: { cut_id: number, refreshAfter: boolean (opcional, default true) }
+   */
+  async ({ cut_id, refreshAfter = true } = {}, { rejectWithValue, dispatch }) => {
+    const token = localStorage.getItem("access");
+    try {
+      const url = `${API_URL}/api/shipping/pay-cut/${cut_id}/`;
+      const response = await axios.post(
+        url,
+        {},
+        {
+          headers: { Authorization: `JWT ${token}` },
+        }
+      );
+      // refrescar lista de cortes si se pidió
+      if (refreshAfter) {
+        dispatch(fetchCuts({ page: 1, page_size: 20 }));
+      }
+      return response.data;
+    } catch (err) {
+      const payloadErr = err.response?.data || err.message || "Error al pagar corte";
+      return rejectWithValue(payloadErr);
+    }
+  }
+);
+
+// ----------------------------------------
+// NEW: downloadCutPdf  (GET PDF) -> descarga/abre en nueva pestaña
+// ----------------------------------------
+export const downloadCutPdf = createAsyncThunk(
+  "shipping/downloadCutPdf ",
+  /**
+   * payload: { cut_id: number, openInNewTab: boolean (default true) }
+   */
+  async ({ cut_id, openInNewTab = true } = {}, { rejectWithValue }) => {
+    const token = localStorage.getItem("access");
+    try {
+      const url = `${API_URL}/api/shipping/cut/${cut_id}/pdf/`;
+      const response = await axios.get(url, {
+        headers: { Authorization: `JWT ${token}` },
+        responseType: "blob",
+      });
+
+      // Try to read filename from content-disposition
+      const contentDisposition = response.headers["content-disposition"] || "";
+      let filename = `corte_${cut_id}.pdf`;
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match && match[1]) filename = match[1];
+
+      // create blob and open or download
+      const blob = new Blob([response.data], { type: response.data.type || "application/pdf" });
+      const urlBlob = window.URL.createObjectURL(blob);
+
+      if (openInNewTab) {
+        // abrir en nueva pestaña
+        window.open(urlBlob, "_blank");
+        // no revoke immediately as browser may need it; revoke after small timeout
+        setTimeout(() => {
+          window.URL.revokeObjectURL(urlBlob);
+        }, 10000);
+      } else {
+        // forzar descarga
+        const a = document.createElement("a");
+        a.href = urlBlob;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(urlBlob);
+      }
+
+      return { filename, cut_id };
+    } catch (err) {
+      // If backend returned JSON error as blob, parse it
+      const resp = err?.response;
+      if (resp && resp.data && resp.data instanceof Blob) {
+        try {
+          const text = await resp.data.text();
+          const parsed = JSON.parse(text);
+          return rejectWithValue(parsed);
+        } catch (parseErr) {
+          return rejectWithValue(resp.statusText || "Error al obtener PDF");
+        }
+      }
+      const payloadErr = err.response?.data || err.message || "Error al obtener PDF del corte";
+      return rejectWithValue(payloadErr);
+    }
+  }
+);
+
+// ----------------------------------------
+// NEW: deleteCut
+// ----------------------------------------
+export const deleteCut = createAsyncThunk(
+  "shipping/deleteCut",
+  /**
+   * payload: { cut_id: number, refreshAfter: boolean (default true), page:number, page_size:number }
+   */
+  async ({ cut_id, refreshAfter = true, page = 1, page_size = 20 } = {}, { rejectWithValue, dispatch }) => {
+    const token = localStorage.getItem("access");
+    try {
+      const url = `${API_URL}/api/shipping/cut/${cut_id}/`;
+      const response = await axios.delete(url, {
+        headers: { Authorization: `JWT ${token}` },
+      });
+
+      // If delete succeeded (204), axios returns status 204 with empty data
+      if (refreshAfter) {
+        dispatch(fetchCuts({ page, page_size }));
+      }
+
+      return { cut_id, status: response.status };
+    } catch (err) {
+      const payloadErr = err.response?.data || err.message || "Error al eliminar corte";
+      return rejectWithValue(payloadErr);
+    }
+  }
+);
+
+
 
 // ----------------------------------------
 // Slice
@@ -265,7 +389,10 @@ const initialState = {
   statusAssign: "idle",
   statusDeliver: "idle",
   statusCuts: "idle",
-  statusCreateCut: "idle",   // 'idle' | 'loading' | 'succeeded' | 'failed'
+  statusCreateCut: "idle",
+  statusPayCut: "idle",
+  statusDeleteCut: "idle",     // 👈 NUEVO
+  statusDownloadCutPdf: "idle", // 👈 NUEVO
 
   errorTravels: null,
   errorCouriers: null,
@@ -273,9 +400,11 @@ const initialState = {
   errorDeliver: null,
   errorCuts: null,
   errorCreateCut: null,
-  lastCreatedCutFileName: null, // nombre del PDF descargado (opcional)
+  lastCreatedCutFileName: null,
+  errorPayCut: null,
+  errorDeleteCut: null,       // 👈 NUEVO
+  errorDownloadCutPdf: null,  // 👈 NUEVO
 
-  // útil para redirección después de marcar entregado
   lastDeliveredOrderId: null,
 };
 
@@ -314,6 +443,18 @@ const shippingSlice = createSlice({
       state.statusCreateCut = "idle";
       state.errorCreateCut = null;
       state.lastCreatedCutFileName = null;
+    },
+    clearPayCutState(state) {
+      state.statusPayCut = "idle";
+      state.errorPayCut = null;
+    },
+    clearDeleteCutState(state) {   // 👈 NUEVO
+      state.statusDeleteCut = "idle";
+      state.errorDeleteCut = null;
+    },
+    clearDownloadCutPdfState(state) { // 👈 NUEVO
+      state.statusDownloadCutPdf = "idle";
+      state.errorDownloadCutPdf = null;
     },
   },
   extraReducers: (builder) => {
@@ -437,6 +578,69 @@ const shippingSlice = createSlice({
         state.errorCreateCut = action.payload || action.error?.message;
         state.lastCreatedCutFileName = null;
       });
+    builder
+      .addCase(payCut.pending, (state) => {
+        state.statusPayCut = "loading";
+        state.errorPayCut = null;
+      })
+      .addCase(payCut.fulfilled, (state, action) => {
+        state.statusPayCut = "succeeded";
+        state.errorPayCut = null;
+        // action.payload contiene el resumen retornado por el endpoint, por ejemplo:
+        // { detail, cut_id, status, total_travels_in_cut, total_travels_marked, ... }
+        // Opcional: si quieres actualizar el corte localmente en `cuts` para reflejar status=paid:
+        try {
+          const payload = action.payload || {};
+          const cutId = payload.cut_id;
+          if (cutId && Array.isArray(state.cuts)) {
+            const idx = state.cuts.findIndex((c) => Number(c.id) === Number(cutId));
+            if (idx !== -1) {
+              // actualizar estado y totals si vienen en payload
+              if (payload.status) state.cuts[idx].status = payload.status;
+              if (payload.total_travels_in_cut !== undefined) state.cuts[idx].total_travels = payload.total_travels_in_cut;
+            }
+          }
+        } catch (e) {
+          // no hacer nada si falla la actualización local
+        }
+      })
+      .addCase(payCut.rejected, (state, action) => {
+        state.statusPayCut = "failed";
+        state.errorPayCut = action.payload || action.error?.message;
+      });
+    // deleteCut
+    builder
+      .addCase(deleteCut.pending, (state) => {
+        state.statusDeleteCut = "loading";
+        state.errorDeleteCut = null;
+      })
+      .addCase(deleteCut.fulfilled, (state, action) => {
+        state.statusDeleteCut = "succeeded";
+        const cutId = action.payload?.cut_id;
+        if (cutId) {
+          state.cuts = state.cuts.filter((c) => Number(c.id) !== Number(cutId));
+        }
+      })
+      .addCase(deleteCut.rejected, (state, action) => {
+        state.statusDeleteCut = "failed";
+        state.errorDeleteCut = action.payload || action.error?.message;
+      });
+
+    // downloadCutPdf
+    builder
+      .addCase(downloadCutPdf.pending, (state) => {
+        state.statusDownloadCutPdf = "loading";
+        state.errorDownloadCutPdf = null;
+      })
+      .addCase(downloadCutPdf.fulfilled, (state, action) => {
+        state.statusDownloadCutPdf = "succeeded";
+        // Guardamos nombre para referencia en UI
+        state.lastCreatedCutFileName = action.payload?.filename || null;
+      })
+      .addCase(downloadCutPdf.rejected, (state, action) => {
+        state.statusDownloadCutPdf = "failed";
+        state.errorDownloadCutPdf = action.payload || action.error?.message;
+      });
 
   },
 });
@@ -448,6 +652,9 @@ export const {
   clearDeliverState,
   clearCutsState,
   clearCreateCutState,
+  clearPayCutState,
+  clearDeleteCutState,
+  clearDownloadCutPdfState,
 } = shippingSlice.actions;
 
 export default shippingSlice.reducer;

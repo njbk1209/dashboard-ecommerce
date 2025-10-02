@@ -7,7 +7,7 @@ import {
     assignCourierToTravel,
     markTravelDelivered, // <-- IMPORTAR el thunk
 } from "../../../redux/features/shipping/shippingSlices";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 
@@ -40,6 +40,8 @@ const TravelList = () => {
         courier_identification: "",
         is_paid: "", // "", "true", "false"
     });
+
+    const navigate = useNavigate()
 
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedTravel, setSelectedTravel] = useState(null);
@@ -173,7 +175,7 @@ const TravelList = () => {
                 const orderId = payload?.order_id;
                 if (orderId) {
                     // redirigir el admin a la orden
-                    window.location.href = `/dashboard/order/${orderId}`;
+                    navigate(`/dashboard/order/${orderId}`)
                 } else {
                     // si no viene order_id, refrescamos la tabla
                     dispatch(fetchTravels(params));
@@ -342,13 +344,13 @@ const TravelList = () => {
 
                                         {/* MARCAR ENTREGADO — solo si está en camino */}
                                         {(t.status === "in_shipping" || t.status_display === "En camino") && (
-                                            <button
+                                            <span
                                                 onClick={() => handleMarkDelivered(t)}
-                                                className="bg-green-600 text-white px-2 py-1 rounded text-sm hover:bg-green-700"
+                                                className="text-green-500 px-2 py-1 underline cursor-pointer"
                                                 disabled={statusDeliver === "loading"}
                                             >
                                                 {statusDeliver === "loading" ? "Procesando..." : "Marcar entregado"}
-                                            </button>
+                                            </span>
                                         )}
                                     </td>
                                 </tr>

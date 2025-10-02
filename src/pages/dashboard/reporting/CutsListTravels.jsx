@@ -6,6 +6,12 @@ import { Link } from "react-router"; // ajusta si usas otra cosa
 import {
   fetchCuts,
   createCut,
+  payCut,
+  deleteCut,
+  downloadCutPdf,
+  clearPayCutState,
+  clearDeleteCutState,
+  clearDownloadCutPdfState,
   // optionally clearCreateCutState if you exported it
 } from "../../../redux/features/shipping/shippingSlices";
 
@@ -13,6 +19,7 @@ import {
  * CutsListTravels + Formulario para crear cortes (Formik + Yup)
  * - El formulario está encima de la tabla.
  * - Al crear el corte el thunk descarga el PDF y, si se pide, refresca la lista.
+ * - Añadido botones: "Ver PDF" y "Eliminar" por fila.
  */
 
 export default function CutsListTravels() {
@@ -21,15 +28,31 @@ export default function CutsListTravels() {
   const meta = useSelector((state) => state.shipping.cutsMeta);
   const status = useSelector((state) => state.shipping.statusCuts);
   const error = useSelector((state) => state.shipping.errorCuts);
+  const exchange = useSelector((state) => state.exchange);
 
   const statusCreate = useSelector((state) => state.shipping.statusCreateCut);
   const errorCreate = useSelector((state) => state.shipping.errorCreateCut);
+
+  const statusPayCut = useSelector((state) => state.shipping.statusPayCut);
+  const errorPayCut = useSelector((state) => state.shipping.errorPayCut);
+
+  const statusDeleteCut = useSelector((state) => state.shipping.statusDeleteCut);
+  const errorDeleteCut = useSelector((state) => state.shipping.errorDeleteCut);
+
+  const statusDownloadCutPdf = useSelector((state) => state.shipping.statusDownloadCutPdf);
+  const errorDownloadCutPdf = useSelector((state) => state.shipping.errorDownloadCutPdf);
 
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
   useEffect(() => {
     dispatch(fetchCuts({ page, page_size: pageSize }));
+    // limpiar estados cuando el componente se desmonta
+    return () => {
+      dispatch(clearPayCutState());
+      dispatch(clearDeleteCutState());
+      dispatch(clearDownloadCutPdfState());
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch, page]);
 
@@ -39,10 +62,10 @@ export default function CutsListTravels() {
   // Badges
   const StatusBadge = ({ status }) => {
     if (!status) return <span className="bg-gray-50 text-gray-400 px-2 py-1 rounded-full text-xs font-semibold">-</span>;
-    if (status === "open" || status === "OPEN" || status === "Abierto") {
+    if (String(status).toLowerCase() === "open" || status === "Abierto") {
       return <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-semibold">Abierto</span>;
     }
-    if (status === "paid" || status === "PAID" || status === "Pagado") {
+    if (String(status).toLowerCase() === "paid" || status === "Pagado") {
       return <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">Pagado</span>;
     }
     return <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-semibold">{status}</span>;
@@ -90,20 +113,72 @@ export default function CutsListTravels() {
       });
   };
 
+  // ------------------ Pagar corte ------------------
+  const handlePayCut = (cutId) => {
+    if (!window.confirm(`¿Marcar corte #${cutId} como PAGADO? Esta acción marcará los envios como pagados.`)) return;
+
+    dispatch(payCut({ cut_id: cutId, refreshAfter: true }))
+      .unwrap()
+      .then((res) => {
+        // éxito
+        dispatch(fetchCuts({ page, page_size: pageSize }));
+        alert(res?.detail || "Corte marcado como pagado.");
+      })
+      .catch((err) => {
+        console.error("Error pagando corte:", err);
+        const message = err?.detail || err?.message || JSON.stringify(err) || "Error al pagar el corte";
+        alert("Error al pagar el corte: " + message);
+      });
+  };
+
+  // ------------------ Descargar / Ver PDF ------------------
+  const handleDownloadPdf = (cutId) => {
+    // Ejecuta el thunk; abre en nueva pestaña (por defecto)
+    dispatch(downloadCutPdf({ cut_id: cutId, openInNewTab: true }))
+      .unwrap()
+      .then((res) => {
+        // éxito: opcional feedback
+        // filename está en res.filename
+      })
+      .catch((err) => {
+        console.error("Error obteniendo PDF:", err);
+        const message = err?.detail || err?.message || JSON.stringify(err) || "Error al obtener PDF";
+        alert("Error al obtener PDF: " + message);
+      });
+  };
+
+  // ------------------ Eliminar corte ------------------
+  const handleDeleteCut = (cutId) => {
+    if (!window.confirm(`¿Eliminar corte #${cutId}? Esta acción no se puede revertir.`)) return;
+
+    dispatch(deleteCut({ cut_id: cutId, refreshAfter: true, page, page_size: pageSize }))
+      .unwrap()
+      .then((res) => {
+        // éxito: fetchCuts ya fue despachado por deleteCut; damos feedback
+        alert("Corte eliminado correctamente.");
+      })
+      .catch((err) => {
+        console.error("Error eliminando corte:", err);
+        const message = err?.detail || err?.message || JSON.stringify(err) || "Error al eliminar corte";
+        alert("Error al eliminar corte: " + message);
+      });
+  };
+
   return (
-    <div className="text-gray-900 space-y-4 bg-white p-4 rounded shadow-sm">
+    <div className="text-gray-900 space-y-4 bg-white">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Cortes</h1>
+        <h1 className="text-2xl">Cortes</h1>
         <div className="text-sm text-gray-600">{status === "loading" ? "Cargando..." : `Resultados: ${meta?.count ?? 0}`}</div>
       </div>
 
       {/* ------------------ FORMULARIO PARA CREAR CORTE ------------------ */}
-      <div className="bg-gray-50 p-4 rounded border border-gray-100">
+      <div className="">
         <Formik
+          enableReinitialize
           initialValues={{
             start_date: "",
             end_date: "",
-            exchange_rate: "1.0",
+            exchange_rate: Number(exchange?.rate) || "",
             note: "",
           }}
           validationSchema={validationSchema}
@@ -126,7 +201,7 @@ export default function CutsListTravels() {
                   </div>
 
                   <div className="flex flex-col">
-                    <label className="text-sm text-gray-700 mb-1">Tasa (BS x USD)</label>
+                    <label className="text-sm text-gray-700 mb-1">Tasa {exchange?.date}</label>
                     <Field name="exchange_rate" type="number" step="0.0001" className="border border-gray-300 rounded px-3 py-2 text-sm w-36" />
                     <ErrorMessage name="exchange_rate" component="div" className="text-xs text-red-600 mt-1" />
                   </div>
@@ -150,7 +225,6 @@ export default function CutsListTravels() {
                   <button
                     type="button"
                     onClick={() => {
-                      // limpiar formulario: simplemente disparar un evento nativo para resetear valores en Formik
                       setFieldValue("start_date", "");
                       setFieldValue("end_date", "");
                       setFieldValue("exchange_rate", "1.0");
@@ -193,7 +267,7 @@ export default function CutsListTravels() {
                 <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Rango</th>
                 <th className="px-4 py-2 text-right text-sm font-medium text-gray-700">Total (base)</th>
                 <th className="px-4 py-2 text-right text-sm font-medium text-gray-700">Total (BS)</th>
-                <th className="px-4 py-2 text-center text-sm font-medium text-gray-700">Viajes</th>
+                <th className="px-4 py-2 text-center text-sm font-medium text-gray-700">Envios</th>
                 <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Estado</th>
                 <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">Acciones</th>
               </tr>
@@ -220,10 +294,43 @@ export default function CutsListTravels() {
                     <StatusBadge status={c.status} />
                   </td>
 
-                  <td className="px-4 py-3 text-sm text-gray-800 flex items-center gap-3">
-                    <Link to={`/dashboard/cut/${c.id}`} className="text-blue-600 underline text-sm">
-                      Ver
-                    </Link>
+                  <td className="px-4 py-3 text-gray-800  space-x-2 text-sm">
+                    {/* Ver PDF */}
+                    <span
+                      onClick={() => handleDownloadPdf(c.id)}
+                      disabled={statusDownloadCutPdf === "loading"}
+                      className={`${
+                        statusDownloadCutPdf === "loading" ? "text-gray-500 cursor-not-allowed" : "text-blue-500 underline cursor-pointer"
+                      }`}
+                    >
+                      {statusDownloadCutPdf === "loading" ? "Cargando..." : "Ver PDF"}
+                    </span>
+
+                    {/* BOTÓN: Marcar pagado (solo si no está pagado) */}
+                    {String(c.status).toLowerCase() !== "paid" && (
+                      <span
+                        onClick={() => handlePayCut(c.id)}
+                        disabled={statusPayCut === "loading"}
+                        className={`${
+                          statusPayCut === "loading" ? "text-gray-500 cursor-not-allowed" : "text-green-500 underline cursor-pointer"
+                        }`}
+                      >
+                        {statusPayCut === "loading" ? "Procesando..." : "Marcar pagado"}
+                      </span>
+                    )}
+
+                    {/* BOTÓN: Eliminar (solo si NO está pagado) */}
+                    {String(c.status).toLowerCase() !== "paid" && (
+                      <span
+                        onClick={() => handleDeleteCut(c.id)}
+                        disabled={statusDeleteCut === "loading"}
+                        className={`${
+                          statusDeleteCut === "loading" ? "text-gray-500 cursor-not-allowed" : "text-red-500 underline cursor-pointer"
+                        }`}
+                      >
+                        {statusDeleteCut === "loading" ? "Eliminando..." : "Eliminar"}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
