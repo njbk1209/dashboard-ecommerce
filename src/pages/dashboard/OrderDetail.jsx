@@ -22,6 +22,10 @@ import {
 } from "@heroicons/react/24/outline";
 import "./orderDetail.css";
 
+function classNames(...classes) {
+  return classes.filter(Boolean).join(" ");
+}
+
 // Lista de estados disponibles
 const ORDER_STATUSES = [
   { value: "not_processed", label: "Pago pendiente" },
@@ -265,7 +269,7 @@ const OrderDetail = () => {
           </button>
           <h1 className="text-2xl mb-2">Pedido #{order?.id}</h1>
         </div>
-        
+
         <div className="grid grid-cols-4 gap-8">
           <aside className="col-span-1 print-hidden">
             {order?.status && (
@@ -273,8 +277,9 @@ const OrderDetail = () => {
                 <h3 className="font-bold text-base mb-2">
                   Actualizar estado de la orden
                 </h3>
+
                 <Formik
-                  initialValues={{ status: "" }}
+                  initialValues={{ status: "", invoice_number: "" }}
                   enableReinitialize
                   validationSchema={Yup.object().shape({
                     status: Yup.string()
@@ -283,15 +288,36 @@ const OrderDetail = () => {
                         TRANSITION_RULES[order.status] || [],
                         "Transición de estado no permitida"
                       ),
+                    // invoice_number depende exclusivamente del estado en Redux (order?.status)
+                    invoice_number: (() => {
+                      const allowedInvoiceStates = ["pickup", "shipping"];
+                      if (allowedInvoiceStates.includes(order?.status)) {
+                        return Yup.string()
+                          .trim()
+                          .required(
+                            "El número de factura es obligatorio para este estado"
+                          )
+                          .min(3, "Número de factura muy corto");
+                      }
+                      return Yup.string().notRequired();
+                    })(),
                   })}
                   onSubmit={async (values, { setSubmitting, resetForm }) => {
                     try {
-                      await dispatch(
-                        updateOrderStatus({
-                          orderId: order.id,
-                          status: values.status,
-                        })
-                      ).unwrap();
+                      // Construimos el payload; solo incluimos invoice_number si corresponde
+                      const payload = {
+                        orderId: order.id,
+                        status: values.status,
+                      };
+                      const allowedInvoiceStates = ["pickup", "shipping"];
+                      if (
+                        allowedInvoiceStates.includes(order?.status) &&
+                        values.invoice_number
+                      ) {
+                        payload.invoice_number = values.invoice_number;
+                      }
+
+                      await dispatch(updateOrderStatus(payload)).unwrap();
                       await dispatch(fetchOrderById(order.id));
                       await dispatch(fetchOrderNotes(order_id));
                       toast.success("Estado actualizado correctamente");
@@ -314,6 +340,11 @@ const OrderDetail = () => {
                         </p>
                       );
                     }
+
+                    const isInvoiceEnabled = ["pickup", "shipping"].includes(
+                      order?.status
+                    );
+
                     return (
                       <Form className="space-y-4">
                         <div>
@@ -343,6 +374,43 @@ const OrderDetail = () => {
                             className="text-sm text-red-600 mt-1"
                           />
                         </div>
+
+                        <div>
+                          <label
+                            htmlFor="invoice_number"
+                            className="block text-sm font-medium text-gray-700"
+                          >
+                            Número de factura sistema local
+                          </label>
+
+                          <Field
+                            id="invoice_number"
+                            name="invoice_number"
+                            type="text"
+                            placeholder="Ingresa número de factura local"
+                            disabled={!isInvoiceEnabled}
+                            className={classNames(
+                              "mt-1 block w-full rounded py-2 px-3 border text-xs",
+                              isInvoiceEnabled
+                                ? "bg-white"
+                                : "bg-gray-100 cursor-not-allowed"
+                            )}
+                          />
+                          <ErrorMessage
+                            name="invoice_number"
+                            component="div"
+                            className="text-sm text-red-600 mt-1"
+                          />
+                          {!isInvoiceEnabled && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              El número de factura sólo se habilita y es
+                              obligatorio cuando la orden en el sistema está en{" "}
+                              <strong>pickup</strong> o{" "}
+                              <strong>shipping</strong>.
+                            </p>
+                          )}
+                        </div>
+
                         <button
                           type="submit"
                           disabled={isSubmitting}
@@ -388,6 +456,12 @@ const OrderDetail = () => {
             <div className="grid grid-cols-3 gap-5 print-hidden">
               <div className="space-y-2">
                 <h2 className="font-bold text-base">General</h2>
+                <div>
+                  <h3 className="text-gray-900 text-sm">Factura sistema local</h3>
+                  <span className="text-gray-700 text-sm">
+                    {order?.invoice_number ?? "No defido"}
+                  </span>
+                </div>
                 <div>
                   <h3 className="text-gray-900 text-sm">Estado del pedido</h3>
                   <span className="text-gray-700 text-sm">
@@ -453,8 +527,8 @@ const OrderDetail = () => {
                   <span className="text-gray-700 text-sm">
                     {order?.payment_proofs[0]?.uploaded_at
                       ? new Date(
-                        order?.payment_proofs[0]?.uploaded_at
-                      ).toLocaleDateString("es-ES")
+                          order?.payment_proofs[0]?.uploaded_at
+                        ).toLocaleDateString("es-ES")
                       : "No disponible"}
                   </span>
                 </div>

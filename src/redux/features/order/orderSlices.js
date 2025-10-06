@@ -165,7 +165,6 @@ export const fetchAdminOrders = createAsyncThunk(
       );
       return response.data;
     } catch (error) {
-      console.log(error);
       return rejectWithValue(
         error.response?.data?.detail || "Error al obtener órdenes"
       );
@@ -191,7 +190,6 @@ export const fetchOrderById = createAsyncThunk(
         `http://127.0.0.1:8000/api/order/get-order/${orderId}/`,
         config
       );
-      console.log(response.data);
       return response.data;
     } catch (error) {
       const message =
@@ -200,7 +198,6 @@ export const fetchOrderById = createAsyncThunk(
         error.message ||
         "Error al obtener la orden";
       toast.error(message);
-      console.log(error);
       return rejectWithValue(message);
     }
   }
@@ -237,7 +234,7 @@ export const fetchPaymentProofById = createAsyncThunk(
 
 export const updateOrderStatus = createAsyncThunk(
   "order/updateOrderStatus",
-  async ({ orderId, status }, { rejectWithValue }) => {
+  async ({ orderId, status, invoice_number }, { rejectWithValue }) => {
     const token = localStorage.getItem("access");
 
     try {
@@ -251,7 +248,7 @@ export const updateOrderStatus = createAsyncThunk(
 
       const response = await axios.patch(
         `http://127.0.0.1:8000/api/order/update-status/${orderId}/`,
-        { status },
+        { status, invoice_number },
         config
       );
 
@@ -280,10 +277,8 @@ export const fetchOrderDetails = createAsyncThunk(
           },
         }
       );
-      console.log(response.data);
       return response.data;
     } catch (error) {
-      console.log(error);
       return thunkAPI.rejectWithValue(
         error.response?.data || "Error al obtener detalles de la orden"
       );
@@ -346,7 +341,6 @@ export const fetchOrderNotes = createAsyncThunk(
       );
       return response.data;
     } catch (error) {
-      console.log(error);
       return thunkAPI.rejectWithValue(
         error.response?.data || "Error al obtener notas de la orden"
       );
