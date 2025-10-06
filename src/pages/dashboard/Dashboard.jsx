@@ -108,14 +108,6 @@ const Dashboard = () => {
                       Inicio
                     </ListItem>
                   </NavLink>
-                  <NavLink to="reporting">
-                    <ListItem onClick={closeDrawer}>
-                      <ListItemPrefix>
-                        <ChevronRightIcon strokeWidth={3} className="h-3 w-5" />
-                      </ListItemPrefix>
-                      Ventas
-                    </ListItem>
-                  </NavLink>
                   <NavLink to="shipping/cuts">
                     <ListItem>
                       <ListItemPrefix>

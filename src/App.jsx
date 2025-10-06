@@ -2,8 +2,8 @@ import { Routes, Route } from "react-router";
 import Login from "./pages/auth/Login";
 import Dashboard from "./pages/dashboard/Dashboard";
 import Index from "./pages/dashboard/Index";
-import Orders from "./pages/dashboard/Orders";
-import OrderDetail from "./pages/dashboard/OrderDetail";
+import Orders from "./pages/dashboard/order/Orders";
+import OrderDetail from "./pages/dashboard/order/OrderDetail";
 import ProductsDashboard from "./pages/dashboard/products/Index";
 import Reporting from "./pages/dashboard/reporting";
 import SalesDetail from "./pages/dashboard/reporting/SalesDetail";
@@ -32,10 +32,6 @@ function App() {
         <Route path="shipping" element={<TravelList />} />
         <Route path="shipping/cuts" element={<CutsListTravels />} />
 
-
-
-        <Route path="reporting" element={<Reporting />} />
-        <Route path="reporting/sales-detail/:id" element={<SalesDetail />} />
       </Route>
     </Routes>
   )
