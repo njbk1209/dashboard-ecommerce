@@ -14,7 +14,7 @@ const initialState = {
   searchProductsStatus: "idle",
 };
 
-const API_URL = import.meta.env.VITE_API_URL;
+const BASE_URL = import.meta.env.VITE_API_URL;
 
 // ✅ Filtros esperados: { in_stock, in_promo, category_id, min_price, max_price, currency, etc }
 export const fetchAdminProducts = createAsyncThunk(
@@ -34,7 +34,7 @@ export const fetchAdminProducts = createAsyncThunk(
       const params = new URLSearchParams(filters).toString();
 
       const response = await axios.get(
-        `http://127.0.0.1:8000/api/product/get-products/?${params}`,
+        `${BASE_URL}/api/product/get-products/?${params}`,
         config
       );
 
@@ -63,9 +63,11 @@ export const exportProductsCSV = createAsyncThunk(
       };
 
       const response = await axios.get(
-        "http://127.0.0.1:8000/api/product/products/export/",
+        `${BASE_URL}/api/product/products/export/`,
         config
       );
+
+
 
       // Usamos fileDownload para guardar el archivo
       fileDownload(response.data, "products.csv");
@@ -96,14 +98,30 @@ export const importProductsCSV = createAsyncThunk(
       };
 
       const response = await axios.post(
-        "http://127.0.0.1:8000/api/product/products/import/",
+        `${BASE_URL}/api/product/products/import/`,
         formData,
         config
       );
 
-      return response.data;
+      const blob = new Blob([response.data], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+
+      // Nombre de archivo con timestamp (opcional)
+      link.setAttribute(
+        "download",
+        `errores_productos_${new Date().toISOString().slice(0, 19)}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      // Retornamos algún indicador de éxito
+      return { success: true, message: "CSV procesado y resumen descargado" };
     } catch (error) {
-      console.error(error.response);
+      console.error(error);
       return rejectWithValue(
         error.response?.data?.error || "Error al importar productos"
       );
@@ -119,7 +137,7 @@ export const fetchSearchProducts = createAsyncThunk(
       const params = new URLSearchParams();
       params.append("q", query);
       const response = await axios.get(
-        `${API_URL}/api/product/search-products/?${params.toString()}`,
+        `${BASE_URL}/api/product/search-products/?${params.toString()}`,
         { signal } // 👈 importante
       );
       return response.data;
@@ -152,7 +170,7 @@ export const toggleProductForSales = createAsyncThunk(
       const body = JSON.stringify({ for_sales });
 
       const response = await axios.patch(
-        `http://127.0.0.1:8000/api/product/toggle-for-sales/${order_id}/`,
+        `${BASE_URL}/api/product/toggle-for-sales/${order_id}/`,
         body,
         config
       );

@@ -44,7 +44,7 @@ const initialState = {
   errorDownloadOrderCutPdf: null,
 };
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 // ---------------------- Helpers ----------------------
 const toQuery = (obj = {}) =>
@@ -160,7 +160,7 @@ export const fetchAdminOrders = createAsyncThunk(
       };
       const params = new URLSearchParams(filters).toString();
       const response = await axios.get(
-        `http://127.0.0.1:8000/api/order/get-orders-admin/?${params}`,
+        `${BASE_URL}/api/order/get-orders-admin/?${params}`,
         config
       );
       return response.data;
@@ -187,7 +187,7 @@ export const fetchOrderById = createAsyncThunk(
       };
 
       const response = await axios.get(
-        `http://127.0.0.1:8000/api/order/get-order/${orderId}/`,
+        `${BASE_URL}/api/order/get-order/${orderId}/`,
         config
       );
       return response.data;
@@ -218,7 +218,7 @@ export const fetchPaymentProofById = createAsyncThunk(
       };
 
       const response = await axios.get(
-        `http://127.0.0.1:8000/api/payment/get-payment-proof/?order_id=${order_id}`,
+        `${BASE_URL}/api/payment/get-payment-proof/?order_id=${order_id}`,
         config
       );
 
@@ -247,7 +247,7 @@ export const updateOrderStatus = createAsyncThunk(
       };
 
       const response = await axios.patch(
-        `http://127.0.0.1:8000/api/order/update-status/${orderId}/`,
+        `${BASE_URL}/api/order/update-status/${orderId}/`,
         { status, invoice_number },
         config
       );
@@ -270,7 +270,7 @@ export const fetchOrderDetails = createAsyncThunk(
     try {
       const token = localStorage.getItem("access");
       const response = await axios.get(
-        `${API_URL}/api/order/get-order/${orderId}/`,
+        `${BASE_URL}/api/order/get-order/${orderId}/`,
         {
           headers: {
             Authorization: token ? `JWT ${token}` : "",
@@ -308,7 +308,7 @@ export const updateOrderItems = createAsyncThunk(
       }
 
       const response = await axios.post(
-        `${API_URL}api/order/edit-order-items/${orderId}/`,
+        `${BASE_URL}/api/order/edit-order-items/${orderId}/`,
         payload,
         {
           headers: {
@@ -332,7 +332,7 @@ export const fetchOrderNotes = createAsyncThunk(
     try {
       const token = localStorage.getItem("access");
       const response = await axios.get(
-        `${API_URL}api/order/get-notes/${orderId}/`,
+        `${BASE_URL}/api/order/get-notes/${orderId}/`,
         {
           headers: {
             Authorization: token ? `JWT ${token}` : "",
@@ -363,7 +363,7 @@ export const fetchDashboardOverview = createAsyncThunk(
 
     try {
       const res = await axios.get(
-        `${API_URL}/api/order/info-dashboard/${qs ? `?${qs}` : ""}`,
+        `${BASE_URL}/api/order/info-dashboard/${qs ? `?${qs}` : ""}`,
         {
           headers: {
             Accept: "application/json",
@@ -404,8 +404,8 @@ export const fetchOrderCuts = createAsyncThunk(
 
       const url =
         searchParams.toString() !== ""
-          ? `${API_URL}/api/order/get-order-cuts/?${searchParams.toString()}`
-          : `${API_URL}/api/order/get-order-cuts/`;
+          ? `${BASE_URL}/api/order/get-order-cuts/?${searchParams.toString()}`
+          : `${BASE_URL}/api/order/get-order-cuts/`;
 
       const config = {
         headers: {
@@ -446,7 +446,7 @@ export const createOrderCut = createAsyncThunk(
   async (payload = {}, { rejectWithValue, dispatch }) => {
     const token = localStorage.getItem("access");
     try {
-      const url = `${API_URL}/api/order/create-cut-orders/`;
+      const url = `${BASE_URL}/api/order/create-cut-orders/`;
       const body = {
         start_date: payload.start_date,
         end_date: payload.end_date,
@@ -512,7 +512,7 @@ export const downloadOrderCutPdf = createAsyncThunk(
   async ({ cut_id, openInNewTab = true } = {}, { rejectWithValue }) => {
     const token = localStorage.getItem("access");
     try {
-      const url = `${API_URL}/api/order/cut/${cut_id}/pdf/`;
+      const url = `${BASE_URL}/api/order/cut/${cut_id}/pdf/`;
       const response = await axios.get(url, {
         headers: { Authorization: `JWT ${token}` },
         responseType: "blob",
@@ -563,7 +563,7 @@ export const deleteOrderCut = createAsyncThunk(
   async ({ cut_id, refreshAfter = true, page = 1, page_size = 20 } = {}, { rejectWithValue, dispatch }) => {
     const token = localStorage.getItem("access");
     try {
-      const url = `${API_URL}/api/order/cut/${cut_id}/`;
+      const url = `${BASE_URL}/api/order/cut/${cut_id}/`;
       const response = await axios.delete(url, {
         headers: { Authorization: `JWT ${token}` },
       });
@@ -591,7 +591,7 @@ export const payOrderCut = createAsyncThunk(
     if (!cut_id) return rejectWithValue("ID del corte no proporcionado");
 
     try {
-      const url = `${API_URL}/api/order/pay-cut/${cut_id}/`;
+      const url = `${BASE_URL}/api/order/pay-cut/${cut_id}/`;
       const response = await axios.post(
         url,
         {}, // body vacío

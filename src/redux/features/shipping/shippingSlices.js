@@ -2,7 +2,7 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
 import toast from "react-hot-toast";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const BASE_URL = import.meta.env.VITE_API_URL;
 
 // ----------------------------------------
 // 1️⃣ Fetch Travels
@@ -29,8 +29,8 @@ export const fetchTravels = createAsyncThunk(
       });
 
       const url = searchParams.toString()
-        ? `${API_URL}/api/shipping/get-travels/?${searchParams.toString()}`
-        : `${API_URL}/api/shipping/get-travels/`;
+        ? `${BASE_URL}/api/shipping/get-travels/?${searchParams.toString()}`
+        : `${BASE_URL}/api/shipping/get-travels/`;
 
       const response = await axios.get(url, {
         headers: { Authorization: `JWT ${token}` },
@@ -66,7 +66,7 @@ export const fetchAvailableCouriers = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     const token = localStorage.getItem("access");
     try {
-      const response = await axios.get(`${API_URL}/api/shipping/couriers/available/`, {
+      const response = await axios.get(`${BASE_URL}/api/shipping/couriers/available/`, {
         headers: { Authorization: `JWT ${token}` },
       });
       return response.data;
@@ -85,7 +85,7 @@ export const assignCourierToTravel = createAsyncThunk(
     const token = localStorage.getItem("access");
     try {
       const response = await axios.patch(
-        `${API_URL}/api/shipping/travel/${travel_id}/assign-courier/`,
+        `${BASE_URL}/api/shipping/travel/${travel_id}/assign-courier/`,
         { courier_id },
         { headers: { Authorization: `JWT ${token}` } }
       );
@@ -107,7 +107,7 @@ export const markTravelDelivered = createAsyncThunk(
     const token = localStorage.getItem("access");
     try {
       const response = await axios.patch(
-        `${API_URL}/api/shipping/travel/${travel_id}/mark-delivered/`,
+        `${BASE_URL}/api/shipping/travel/${travel_id}/mark-delivered/`,
         {},
         { headers: { Authorization: `JWT ${token}` } }
       );
@@ -137,8 +137,8 @@ export const fetchCuts = createAsyncThunk(
       });
 
       const url = searchParams.toString()
-        ? `${API_URL}/api/shipping/get-cuts/?${searchParams.toString()}`
-        : `${API_URL}/api/shipping/get-cuts/`;
+        ? `${BASE_URL}/api/shipping/get-cuts/?${searchParams.toString()}`
+        : `${BASE_URL}/api/shipping/get-cuts/`;
 
       const response = await axios.get(url, {
         headers: { Authorization: `JWT ${token}` },
@@ -184,7 +184,7 @@ export const createCut = createAsyncThunk(
   async (payload = {}, { rejectWithValue, dispatch }) => {
     const token = localStorage.getItem("access");
     try {
-      const url = `${API_URL}/api/shipping/create-cut/`;
+      const url = `${BASE_URL}/api/shipping/create-cut/`;
       // Preparar body
       const body = {
         start_date: payload.start_date,
@@ -258,7 +258,7 @@ export const payCut = createAsyncThunk(
   async ({ cut_id, refreshAfter = true } = {}, { rejectWithValue, dispatch }) => {
     const token = localStorage.getItem("access");
     try {
-      const url = `${API_URL}/api/shipping/pay-cut/${cut_id}/`;
+      const url = `${BASE_URL}/api/shipping/pay-cut/${cut_id}/`;
       const response = await axios.post(
         url,
         {},
@@ -289,7 +289,7 @@ export const downloadCutPdf = createAsyncThunk(
   async ({ cut_id, openInNewTab = true } = {}, { rejectWithValue }) => {
     const token = localStorage.getItem("access");
     try {
-      const url = `${API_URL}/api/shipping/cut/${cut_id}/pdf/`;
+      const url = `${BASE_URL}/api/shipping/cut/${cut_id}/pdf/`;
       const response = await axios.get(url, {
         headers: { Authorization: `JWT ${token}` },
         responseType: "blob",
@@ -353,7 +353,7 @@ export const deleteCut = createAsyncThunk(
   async ({ cut_id, refreshAfter = true, page = 1, page_size = 20 } = {}, { rejectWithValue, dispatch }) => {
     const token = localStorage.getItem("access");
     try {
-      const url = `${API_URL}/api/shipping/cut/${cut_id}/`;
+      const url = `${BASE_URL}/api/shipping/cut/${cut_id}/`;
       const response = await axios.delete(url, {
         headers: { Authorization: `JWT ${token}` },
       });

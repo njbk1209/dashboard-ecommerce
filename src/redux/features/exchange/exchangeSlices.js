@@ -11,14 +11,14 @@ const initialState = {
   selectedExchange: "Bs", 
 };
 
-const API_URL = import.meta.env.VITE_API_URL;
+const BASE_URL = import.meta.env.VITE_API_URL;
 
 export const fetchLatestExchange = createAsyncThunk(
   "exchange/fetchLatestExchange",
   async (_, { rejectWithValue }) => {
     try {
       const response = await axios.get(
-        `${API_URL}/api/exchange/get-exchange/`
+        `${BASE_URL}/api/exchange/get-exchange/`
       );
       return response.data;
     } catch (err) {

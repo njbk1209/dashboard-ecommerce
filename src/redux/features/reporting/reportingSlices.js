@@ -8,7 +8,7 @@ const initialState = {
   error: null,
 };
 
-const API_BASE = "http://127.0.0.1:8000/api";
+const BASE_URL = import.meta.env.VITE_API_URL;
 
 // 1️⃣ Crear reporte de ventas
 export const createSalesReport = createAsyncThunk(
@@ -26,7 +26,7 @@ export const createSalesReport = createAsyncThunk(
       };
 
       const response = await axios.post(
-        `${API_BASE}/sales/sales-reports/create/?date=${date}`,
+        `${BASE_URL}/sales/sales-reports/create/?date=${date}`,
         null, // sin body
         config
       );
@@ -58,7 +58,7 @@ export const fetchSalesReports = createAsyncThunk(
       const params = new URLSearchParams(filters).toString();
 
       const response = await axios.get(
-        `${API_BASE}/sales/sales-reports/?${params}`,
+        `${BASE_URL}/sales/sales-reports/?${params}`,
         config
       );
       return response.data;
@@ -86,7 +86,7 @@ export const fetchSalesReportDetail = createAsyncThunk(
       };
 
       const response = await axios.get(
-        `${API_BASE}/sales/sales-reports/detail/?id=${id}&date=${date}`,
+        `${BASE_URL}/sales/sales-reports/detail/?id=${id}&date=${date}`,
         config
       );
 

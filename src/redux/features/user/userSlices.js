@@ -42,10 +42,7 @@ const initialState = {
   },
 };
 
-const isProd = window.location.hostname.includes("appweb.motorche.com");
-const BASE_URL = isProd
-  ? "https://apiweb.motorche.com"
-  : "http://localhost:8000";
+const BASE_URL = import.meta.env.VITE_API_URL;
 
 /* =======================
    Helpers
