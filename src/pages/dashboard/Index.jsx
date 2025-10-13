@@ -203,10 +203,10 @@ const Index = () => {
   );
 
   return (
-    <div className="text-gray-800 py-6 bg-white pr-4">
+    <div className="text-gray-800 bg-white pr-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-medium">Panel de inicio</h1>
+        <h1 className="text-2xl">Panel de inicio</h1>
         <button
           onClick={applyFilters}
           className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm"

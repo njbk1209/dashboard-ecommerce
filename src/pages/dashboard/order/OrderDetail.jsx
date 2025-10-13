@@ -238,7 +238,7 @@ const OrderDetail = () => {
     if (order?.phone_number) {
       // Asegúrate de que el número esté en formato internacional sin caracteres especiales
       const phoneNumber = order.phone_number.replace(/[\s\-\(\)]/g, ""); // Construye el URL de WhatsApp Web
-      const whatsappUrl = `https://wa.me/${phoneNumber}`;
+      const whatsappUrl = `https://wa.me/+58${phoneNumber}`;
       window.open(whatsappUrl, "_blank");
     } else {
       toast.error("Número de teléfono no disponible.");
