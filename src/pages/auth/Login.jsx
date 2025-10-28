@@ -54,11 +54,6 @@ export default function Login() {
             <div className="mx-auto bg-white flex flex-col justify-center py-12 px-16 border border-[#E0E0E0]">
                 <div className="w-full min-w-[350px]">
                     <div className="flex flex-col justify-center items-center text-center mb-7">
-                        <img
-                            className="mx-auto h-46 w-auto"
-                            src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcST4LdVtYqkiG179iM4QDS_LxyWjqy3gxAA4g&s"
-                            alt="Workflow"
-                        />
                         <h1 className="text-[34px] font-bold leading-[74px] text-gray-900">Iniciar sesión</h1>
                     </div>
                     <Formik
