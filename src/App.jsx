@@ -12,6 +12,7 @@ import AdminUserDetail from "./pages/dashboard/users/AdminUserDetail";
 import TravelList from "./pages/dashboard/shipping/TravelList";
 import CutsListTravels from "./pages/dashboard/reporting/CutsListTravels";
 import OrderCutsList from "./pages/dashboard/reporting/OrderCutsList";
+import Settings from "./pages/dashboard/settings/Settings";
 
 function App() {
   return (
@@ -31,6 +32,9 @@ function App() {
 
         <Route path="shipping" element={<TravelList />} />
         <Route path="shipping/cuts" element={<CutsListTravels />} />
+
+        <Route path="settings" element={<Settings />} />
+
 
       </Route>
     </Routes>

@@ -5,6 +5,7 @@ import productReducer from './features/product/productsSlices'
 import salesReportsReducer from './features/reporting/reportingSlices'
 import shippingReducer from "./features/shipping/shippingSlices"
 import exchangeReducer from "./features/exchange/exchangeSlices"
+import controlReducer from "./features/control/controlSlices";
 
 export const store = configureStore({
   reducer: {
@@ -14,5 +15,6 @@ export const store = configureStore({
     salesReports: salesReportsReducer,
     shipping: shippingReducer,
     exchange: exchangeReducer,
+    control: controlReducer,
   },
 })

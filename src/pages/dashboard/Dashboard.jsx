@@ -196,12 +196,14 @@ const Dashboard = () => {
               </ListItemPrefix>
               Profile
             </ListItem>
+            <NavLink to="settings">
             <ListItem>
               <ListItemPrefix>
                 <Cog6ToothIcon className="h-5 w-5" />
               </ListItemPrefix>
               Settings
             </ListItem>
+            </NavLink>
             <ListItem
               onClick={() => {
                 dispatch(logout());
@@ -231,7 +233,7 @@ const Dashboard = () => {
           <Outlet />
         </div>
       </main>
-    </Layout>
+    </Layout >
   );
 };
 
