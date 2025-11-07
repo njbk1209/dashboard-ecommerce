@@ -13,6 +13,7 @@ import TravelList from "./pages/dashboard/shipping/TravelList";
 import CutsListTravels from "./pages/dashboard/reporting/CutsListTravels";
 import OrderCutsList from "./pages/dashboard/reporting/OrderCutsList";
 import Settings from "./pages/dashboard/settings/Settings";
+import Promotion from "./pages/dashboard/promotion/Promotion";
 
 function App() {
   return (
@@ -32,6 +33,8 @@ function App() {
 
         <Route path="shipping" element={<TravelList />} />
         <Route path="shipping/cuts" element={<CutsListTravels />} />
+
+        <Route path="promotion" element={<Promotion />} />
 
         <Route path="settings" element={<Settings />} />
 

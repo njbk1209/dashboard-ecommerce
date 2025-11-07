@@ -86,8 +86,8 @@ const AdminUsers = () => {
   );
 
   return (
-    <div className="text-gray-800 py-6 bg-white pr-4">
-      <h1 className="text-2xl font-medium mb-3">Gestión de usuarios</h1>
+    <div className="text-gray-900 space-y-4 mx-auto">
+      <h1 className="text-2xl mb-3">Gestión de usuarios</h1>
 
       {/* Search bar */}
       <div className="mb-5 flex">
