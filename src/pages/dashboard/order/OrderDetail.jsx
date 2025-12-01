@@ -8,6 +8,7 @@ import {
 } from "../../../redux/features/order/orderSlices";
 import { useParams, useNavigate } from "react-router";
 import { fetchSearchProducts } from "../../../redux/features/product/productsSlices";
+import { fetchInvoiceByOrderId, createInvoice } from "../../../redux/features/invoice/invoiceSlices";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import toast from "react-hot-toast";
@@ -65,6 +66,7 @@ const OrderDetail = () => {
   const { order, orderStatus, orderNotes, notesStatus } = useSelector(
     (state) => state.order
   );
+  const { invoice, invoiceStatus } = useSelector((state) => state.invoice);
   // Nota: usa el mismo slice que tu SearchBar (state.products)
   const { searchProducts, searchProductsStatus, error } = useSelector(
     (state) => state.product
@@ -75,6 +77,10 @@ const OrderDetail = () => {
 
   // Items locales del modal (edición en memoria)
   const [items, setItems] = useState([]);
+
+  // estado para preview y errores de la url
+  const [imagePreview, setImagePreview] = useState(null);
+  const [imageUrlError, setImageUrlError] = useState(null);
 
   // Buscador con debounce (mismo patrón que SearchBar)
   const [value, setValue] = useState("");
@@ -90,6 +96,7 @@ const OrderDetail = () => {
   useEffect(() => {
     dispatch(fetchOrderById(order_id));
     dispatch(fetchOrderNotes(order_id));
+    dispatch(fetchInvoiceByOrderId(order_id));
   }, [dispatch, order_id]);
 
   useEffect(() => {
@@ -277,9 +284,8 @@ const OrderDetail = () => {
                 <h3 className="font-bold text-base mb-2">
                   Actualizar estado de la orden
                 </h3>
-
                 <Formik
-                  initialValues={{ status: "", invoice_number: "" }}
+                  initialValues={{ status: "", invoice_number: "", invoice_image: "" }}
                   enableReinitialize
                   validationSchema={Yup.object().shape({
                     status: Yup.string()
@@ -288,7 +294,36 @@ const OrderDetail = () => {
                         TRANSITION_RULES[order.status] || [],
                         "Transición de estado no permitida"
                       ),
-                    // invoice_number depende exclusivamente del estado en Redux (order?.status)
+
+                    // invoice_image: misma lógica que invoice_number (obligatorio sólo en pickup/shipping)
+                    invoice_image: (() => {
+                      const allowedInvoiceStates = ["pickup", "shipping"];
+                      if (allowedInvoiceStates.includes(order?.status)) {
+                        return Yup.string()
+                          .trim()
+                          .required("La URL de la imagen es obligatoria en este estado")
+                          .url("Debe ser una URL válida (ej. https://dominio.com/imagen.jpg)");
+                      }
+                      // si NO es obligatorio: validar sólo si viene algo (permitir vacío)
+                      return Yup.string()
+                        .trim()
+                        .notRequired()
+                        .test(
+                          "is-valid-or-empty",
+                          "Debe ser una URL válida (ej. https://dominio.com/imagen.jpg)",
+                          (val) => {
+                            if (!val || val === "") return true;
+                            try {
+                              // simple check using URL constructor
+                              new URL(val);
+                              return true;
+                            } catch {
+                              return false;
+                            }
+                          }
+                        );
+                    })(),
+
                     invoice_number: (() => {
                       const allowedInvoiceStates = ["pickup", "shipping"];
                       if (allowedInvoiceStates.includes(order?.status)) {
@@ -304,54 +339,92 @@ const OrderDetail = () => {
                   })}
                   onSubmit={async (values, { setSubmitting, resetForm }) => {
                     try {
-                      // Construimos el payload; solo incluimos invoice_number si corresponde
                       const payload = {
-                        orderId: order.id,
+                        order: order.id,
                         status: values.status,
                       };
+
                       const allowedInvoiceStates = ["pickup", "shipping"];
-                      if (
-                        allowedInvoiceStates.includes(order?.status) &&
-                        values.invoice_number
-                      ) {
-                        payload.invoice_number = values.invoice_number;
+                      if (allowedInvoiceStates.includes(order?.status)) {
+                        // añadimos solo en los estados en los que ambas cosas son requeridas
+                        if (values.invoice_number) payload.invoice_number = values.invoice_number;
+                        if (values.invoice_image) payload.invoice_image = values.invoice_image;
                       }
 
+                      // actualiza orden y crea factura si corresponde
                       await dispatch(updateOrderStatus(payload)).unwrap();
+
+                      // Si el backend espera crear la factura aparte y payload tiene invoice data:
+                      if (payload.invoice_number || payload.invoice_image) {
+                        // crea factura — ajusta createInvoice para aceptar { order, invoice_number, invoice_image }
+                        await dispatch(createInvoice({
+                          order: payload.order,
+                          invoice_number: payload.invoice_number,
+                          invoice_image: payload.invoice_image
+                        })).unwrap();
+                      }
+
                       await dispatch(fetchOrderById(order.id));
                       await dispatch(fetchOrderNotes(order_id));
+                      dispatch(fetchInvoiceByOrderId(order_id));
                       toast.success("Estado actualizado correctamente");
                       resetForm();
+                      setImagePreview(null);
+                      setImageUrlError(null);
                     } catch (error) {
-                      toast.error(`Error al actualizar estado: ${error}`);
+                      // intenta mostrar mensaje útil si viene del backend
+                      const errMsg =
+                        (error && (error.detail || error.message)) ||
+                        (typeof error === "string" ? error : "Error al actualizar estado");
+                      toast.error(`Error al actualizar estado: ${errMsg}`);
                     } finally {
                       setSubmitting(false);
                     }
                   }}
                 >
-                  {({ isSubmitting }) => {
-                    const allowedStatuses =
-                      TRANSITION_RULES[order.status] || [];
+                  {({ isSubmitting, setFieldValue, setFieldError, values }) => {
+                    const allowedStatuses = TRANSITION_RULES[order.status] || [];
                     if (allowedStatuses.length === 0) {
                       return (
                         <p className="text-sm text-gray-600">
-                          Esta orden ya fue finalizada. No se puede cambiar el
-                          estado.
+                          Esta orden ya fue finalizada. No se puede cambiar el estado.
                         </p>
                       );
                     }
 
-                    const isInvoiceEnabled = ["pickup", "shipping"].includes(
-                      order?.status
-                    );
+                    const isInvoiceEnabled = ["pickup", "shipping"].includes(order?.status);
+
+                    // helper local para validar si la URL carga como imagen (preview)
+                    const checkImageLoads = (url) => {
+                      if (!url) {
+                        setImagePreview(null);
+                        setImageUrlError(null);
+                        return;
+                      }
+                      try {
+                        const img = new Image();
+                        img.onload = () => {
+                          setImagePreview(url);
+                          setImageUrlError(null);
+                          setFieldError("invoice_image", undefined);
+                        };
+                        img.onerror = () => {
+                          setImagePreview(null);
+                          setImageUrlError("No se pudo cargar la imagen desde la URL proporcionada");
+                          setFieldError("invoice_image", "No se pudo cargar la imagen desde la URL");
+                        };
+                        img.src = url;
+                      } catch (e) {
+                        setImagePreview(null);
+                        setImageUrlError("URL inválida para imagen");
+                        setFieldError("invoice_image", "URL inválida para imagen");
+                      }
+                    };
 
                     return (
                       <Form className="space-y-4">
                         <div>
-                          <label
-                            htmlFor="status"
-                            className="block text-sm font-medium text-gray-700"
-                          >
+                          <label htmlFor="status" className="block text-sm font-medium text-gray-700">
                             Nuevo estado
                           </label>
                           <Field
@@ -368,18 +441,11 @@ const OrderDetail = () => {
                               </option>
                             ))}
                           </Field>
-                          <ErrorMessage
-                            name="status"
-                            component="div"
-                            className="text-sm text-red-600 mt-1"
-                          />
+                          <ErrorMessage name="status" component="div" className="text-sm text-red-600 mt-1" />
                         </div>
 
                         <div>
-                          <label
-                            htmlFor="invoice_number"
-                            className="block text-sm font-medium text-gray-700"
-                          >
+                          <label htmlFor="invoice_number" className="block text-sm font-medium text-gray-700">
                             Número de factura sistema local
                           </label>
 
@@ -391,34 +457,110 @@ const OrderDetail = () => {
                             disabled={!isInvoiceEnabled}
                             className={classNames(
                               "mt-1 block w-full rounded py-2 px-3 border text-xs",
-                              isInvoiceEnabled
-                                ? "bg-white"
-                                : "bg-gray-100 cursor-not-allowed"
+                              isInvoiceEnabled ? "bg-white" : "bg-gray-100 cursor-not-allowed"
                             )}
                           />
-                          <ErrorMessage
-                            name="invoice_number"
-                            component="div"
-                            className="text-sm text-red-600 mt-1"
-                          />
+                          <ErrorMessage name="invoice_number" component="div" className="text-sm text-red-600 mt-1" />
                           {!isInvoiceEnabled && (
                             <p className="text-xs text-gray-500 mt-1">
-                              El número de factura sólo se habilita y es
-                              obligatorio cuando la orden en el sistema está en{" "}
-                              <strong>pickup</strong> o{" "}
-                              <strong>shipping</strong>.
+                              El número de factura sólo se habilita y es obligatorio cuando la orden en el sistema está en{" "}
+                              <strong>pickup</strong> o <strong>shipping</strong>.
                             </p>
                           )}
                         </div>
 
-                        <button
-                          type="submit"
-                          disabled={isSubmitting}
-                          className="w-full bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition"
-                        >
-                          {isSubmitting
-                            ? "Actualizando..."
-                            : "Actualizar estado"}
+                        {/* Campo URL de imagen - misma lógica */}
+                        <div>
+                          <label htmlFor="invoice_image" className="block text-sm font-medium text-gray-700">
+                            URL de la imagen (comprobante / etiqueta)
+                          </label>
+
+                          <Field name="invoice_image">
+                            {({ field, form }) => (
+                              <div>
+                                <input
+                                  {...field}
+                                  id="invoice_image"
+                                  type="url"
+                                  placeholder="https://.../comprobante.jpg"
+                                  className={classNames(
+                                    "mt-1 block w-full rounded py-2 px-3 border text-xs",
+                                    isInvoiceEnabled ? "bg-white" : "bg-gray-100 cursor-not-allowed"
+                                  )}
+                                  disabled={!isInvoiceEnabled}
+                                  onChange={(e) => {
+                                    const v = e.target.value.trim();
+                                    form.setFieldValue("invoice_image", v);
+                                    // solo verificar preview si está habilitado
+                                    if (isInvoiceEnabled) checkImageLoads(v);
+                                    else {
+                                      setImagePreview(null);
+                                      setImageUrlError(null);
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    if (!e.target.value) {
+                                      setImagePreview(null);
+                                      setImageUrlError(null);
+                                    } else if (isInvoiceEnabled) {
+                                      checkImageLoads(e.target.value.trim());
+                                    }
+                                  }}
+                                />
+
+                                <div className="flex items-center gap-2 mt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (isInvoiceEnabled) checkImageLoads(values.invoice_image);
+                                    }}
+                                    className="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200"
+                                  >
+                                    Verificar imagen
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      form.setFieldValue("invoice_image", "");
+                                      setImagePreview(null);
+                                      setImageUrlError(null);
+                                    }}
+                                    className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100"
+                                  >
+                                    Limpiar
+                                  </button>
+                                </div>
+
+                                <ErrorMessage name="invoice_image" component="div" className="text-sm text-red-600 mt-1" />
+
+                                {imageUrlError && (
+                                  <p className="text-xs text-red-600 mt-1">{imageUrlError}</p>
+                                )}
+
+                                {imagePreview && (
+                                  <div className="mt-3">
+                                    <p className="text-xs text-gray-600 mb-1">Previsualización:</p>
+                                    <div className="w-40 h-40 border rounded overflow-hidden">
+                                      <img src={imagePreview} alt="preview" className="object-cover w-full h-full" />
+                                    </div>
+                                    <a href={imagePreview} target="_blank" rel="noreferrer noopener" className="text-xs text-blue-700 underline mt-2 inline-block">
+                                      Abrir imagen en nueva pestaña
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </Field>
+                          {!isInvoiceEnabled && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              La URL sólo se solicita cuando la orden está en <strong>pickup</strong> o <strong>shipping</strong>.
+                            </p>
+                          )}
+                        </div>
+
+                        <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition">
+                          {isSubmitting ? "Actualizando..." : "Actualizar estado"}
                         </button>
                       </Form>
                     );
@@ -427,9 +569,38 @@ const OrderDetail = () => {
               </div>
             )}
 
+            {
+              invoice && invoiceStatus !== "loading" && invoiceStatus !== "error" && (
+                <div className="mt-6">
+                  <h3 className="font-bold text-base mb-2">Factura local</h3>
+                  <div className="space-y-1">
+                    <div>
+                      <h3 className="text-gray-900 text-sm">N° Factura</h3>
+                      <span className="text-gray-700 text-sm">
+                        #{invoice?.invoice_number ?? "No defido"}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-gray-900 text-sm">Imagen</h3>
+                      <span className="text-blue-600 underline text-sm">
+                        <a href={invoice?.invoice_image} target="_blank">Ver factura</a>
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-gray-900 text-sm">Fecha de creación</h3>
+                      <span className="text-gray-700 text-sm">
+                        {new Date(invoice?.date_issued).toLocaleDateString("es-ES") ?? "No defido"}
+                      </span>
+                    </div>
+                  </div>
+
+                </div>
+              )
+            }
+
             {orderNotes && orderNotes?.notes?.length > 0 && (
               <div className="mt-6">
-                <h4 className="font-bold text-base mb-2">Notas de la orden</h4>
+                <h3 className="font-bold text-base mb-2">Notas de la orden</h3>
                 <ul className="space-y-3">
                   {orderNotes?.notes?.map((note) => (
                     <li
@@ -450,18 +621,14 @@ const OrderDetail = () => {
                 </ul>
               </div>
             )}
+
           </aside>
 
           <div className="col-span-3">
             <div className="grid grid-cols-3 gap-5 print-hidden">
               <div className="space-y-2">
                 <h2 className="font-bold text-base">General</h2>
-                <div>
-                  <h3 className="text-gray-900 text-sm">Factura sistema local</h3>
-                  <span className="text-gray-700 text-sm">
-                    {order?.invoice_number ?? "No defido"}
-                  </span>
-                </div>
+
                 <div>
                   <h3 className="text-gray-900 text-sm">Estado del pedido</h3>
                   <span className="text-gray-700 text-sm">
@@ -527,8 +694,8 @@ const OrderDetail = () => {
                   <span className="text-gray-700 text-sm">
                     {order?.payment_proofs[0]?.uploaded_at
                       ? new Date(
-                          order?.payment_proofs[0]?.uploaded_at
-                        ).toLocaleDateString("es-ES")
+                        order?.payment_proofs[0]?.uploaded_at
+                      ).toLocaleDateString("es-ES")
                       : "No disponible"}
                   </span>
                 </div>

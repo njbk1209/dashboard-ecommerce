@@ -234,7 +234,7 @@ export const fetchPaymentProofById = createAsyncThunk(
 
 export const updateOrderStatus = createAsyncThunk(
   "order/updateOrderStatus",
-  async ({ orderId, status, invoice_number }, { rejectWithValue }) => {
+  async ({ order, status, invoice_number }, { rejectWithValue }) => {
     const token = localStorage.getItem("access");
 
     try {
@@ -247,7 +247,7 @@ export const updateOrderStatus = createAsyncThunk(
       };
 
       const response = await axios.patch(
-        `${BASE_URL}/api/order/update-status/${orderId}/`,
+        `${BASE_URL}/api/order/update-status/${order}/`,
         { status, invoice_number },
         config
       );

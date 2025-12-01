@@ -7,11 +7,13 @@ import salesReportsReducer from './features/reporting/reportingSlices'
 import shippingReducer from "./features/shipping/shippingSlices"
 import exchangeReducer from "./features/exchange/exchangeSlices"
 import controlReducer from "./features/control/controlSlices";
+import invoiceReducer from './features/invoice/invoiceSlices'
 
 export const store = configureStore({
   reducer: {
     user: userReducer,
     order: adminOrdersSlice,
+    invoice: invoiceReducer,
     product: productReducer,
     promotion: promotionReducer,
     salesReports: salesReportsReducer,
